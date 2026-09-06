@@ -23,7 +23,6 @@ segment) will still apply even if a name shifted.
 """
 
 import asyncio
-import audioop
 import collections
 import csv
 import logging
@@ -88,6 +87,52 @@ whisper_model = WhisperModel(WHISPER_MODEL_SIZE, device="cpu", compute_type="int
 logger.info("Whisper model loaded.")
 
 
+TARGET_SAMPLE_RATE = 16000  # what Whisper was trained on
+
+
+def _downmix_to_mono(samples: np.ndarray, num_channels: int) -> np.ndarray:
+    """Average interleaved channels down to one.
+
+    Replaces audioop.tomono, which -- along with the rest of the audioop
+    module -- was removed from the standard library in Python 3.13.
+    """
+    if num_channels <= 1:
+        return samples
+    # Drop a trailing partial frame so the reshape is always exact.
+    usable = (samples.size // num_channels) * num_channels
+    return samples[:usable].reshape(-1, num_channels).mean(axis=1)
+
+
+def _resample(samples: np.ndarray, in_rate: int, out_rate: int) -> np.ndarray:
+    """Resample mono float32 audio. Replaces audioop.ratecv (removed in 3.13).
+
+    Downsampling is low-passed first: everything above the new Nyquist
+    frequency would otherwise fold back into the audible band as aliasing
+    noise, which costs real accuracy on fricatives and sibilants -- exactly
+    the sounds a pronunciation tutor cannot afford to garble.
+    """
+    if samples.size == 0 or in_rate == out_rate:
+        return samples.astype(np.float32)
+
+    if in_rate > out_rate:
+        # Boxcar average over the decimation ratio: cheap, zero-phase, and
+        # good enough for the 48k -> 16k case that LiveKit actually produces.
+        width = int(round(in_rate / out_rate))
+        if width > 1:
+            kernel = np.ones(width, dtype=np.float32) / width
+            samples = np.convolve(samples, kernel, mode="same")
+
+    out_len = int(round(samples.size * out_rate / in_rate))
+    if out_len <= 0:
+        return np.array([], dtype=np.float32)
+
+    # Map each output sample back onto the input timeline and interpolate.
+    src_positions = np.linspace(0, samples.size - 1, out_len)
+    return np.interp(
+        src_positions, np.arange(samples.size), samples
+    ).astype(np.float32)
+
+
 def frames_to_float32(frames: list[rtc.AudioFrame]) -> np.ndarray:
     """Concatenate buffered LiveKit audio frames into one float32 array
     at 16kHz mono, range [-1, 1] -- the format Whisper expects.
@@ -102,18 +147,13 @@ def frames_to_float32(frames: list[rtc.AudioFrame]) -> np.ndarray:
     if not frames:
         return np.array([], dtype=np.float32)
 
-    pcm_bytes = b"".join(f.data.tobytes() for f in frames)
-    in_rate = frames[0].sample_rate
-    num_channels = frames[0].num_channels
-
-    if num_channels > 1:
-        pcm_bytes = audioop.tomono(pcm_bytes, 2, 0.5, 0.5)
-
-    if in_rate != 16000:
-        pcm_bytes, _ = audioop.ratecv(pcm_bytes, 2, 1, in_rate, 16000, None)
-
-    int16_array = np.frombuffer(pcm_bytes, dtype=np.int16)
-    return int16_array.astype(np.float32) / 32768.0
+    pcm_int16 = np.frombuffer(
+        b"".join(f.data.tobytes() for f in frames), dtype=np.int16
+    )
+    # Convert to float BEFORE mixing so channel averaging cannot overflow.
+    samples = pcm_int16.astype(np.float32) / 32768.0
+    samples = _downmix_to_mono(samples, frames[0].num_channels)
+    return _resample(samples, frames[0].sample_rate, TARGET_SAMPLE_RATE)
 
 
 async def entrypoint(ctx: agents.JobContext):
