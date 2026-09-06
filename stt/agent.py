@@ -1,270 +1,92 @@
 """
-STT-only pipeline: LiveKit (transport) + Silero (VAD) + Whisper (speech-to-text)
--- fully local, no OpenAI account/API key needed --
-
-Flow:
-    mic audio --> LiveKit room --> Silero VAD detects start/end of speech
-              --> buffered speech frames --> local Whisper model transcribes
-              --> transcript + per-stage latency printed to console
-
-Whisper here runs locally via `faster-whisper` (a CTranslate2-based
-reimplementation of Whisper -- same model weights, much lighter and faster
-than the official openai-whisper package, no PyTorch required). The first
-run will download the model weights once (a few hundred MB depending on
-size) and cache them locally; after that it runs fully offline.
-
-NOTE: LiveKit Agents' Python SDK API has changed across versions. The VAD
-event shape used below (VADEventType.START_OF_SPEECH / END_OF_SPEECH,
-event.frames) matches the API as of my training data. If you hit
-AttributeErrors, check https://docs.livekit.io/agents/ for the current
-VAD event interface -- the overall approach (push frames into the VAD
-stream, buffer frames between start/end-of-speech, transcribe the buffered
-segment) will still apply even if a name shifted.
+agent.py
+Main entrypoint: Connects LiveKit Room -> VAD Segmenter -> Transcriber.
 """
 
 import asyncio
-import collections
 import csv
 import logging
 import os
 import time
 from datetime import datetime
 
-import numpy as np
 from dotenv import load_dotenv
-from faster_whisper import WhisperModel
-
 from livekit import agents, rtc
-from livekit.plugins import silero
 
-# Load values from .env into the environment (LIVEKIT_URL, etc.) --
-# without this call, having a .env file present does nothing on its own.
+from vad import AudioSegmenter
+from transcriber import WhisperTranscriber
+
 load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
     handlers=[
-        logging.StreamHandler(),                     # keep printing to console
-        logging.FileHandler("agent.log", encoding="utf-8"),  # also save everything to a file
+        logging.StreamHandler(),
+        logging.FileHandler("agent.log", encoding="utf-8"),
     ],
 )
-logger = logging.getLogger("stt-only")
+logger = logging.getLogger("stt-orchestrator")
 
-# --- Transcript output file (CSV, one row per utterance) ---
-# Appends across runs -- doesn't overwrite previous sessions.
-TRANSCRIPT_CSV_PATH = "transcripts.csv"
-_csv_is_new = not os.path.exists(TRANSCRIPT_CSV_PATH)
-_csv_file = open(TRANSCRIPT_CSV_PATH, mode="a", newline="", encoding="utf-8")
-_csv_writer = csv.writer(_csv_file)
-if _csv_is_new:
-    _csv_writer.writerow([
+# CSV Setup
+CSV_FILE = "transcripts.csv"
+file_exists = os.path.exists(CSV_FILE)
+csv_handle = open(CSV_FILE, mode="a", newline="", encoding="utf-8")
+csv_writer = csv.writer(csv_handle)
+
+if not file_exists:
+    csv_writer.writerow([
         "timestamp", "language", "language_confidence",
-        "vad_utterance_seconds", "whisper_ms", "total_latency_ms", "transcript",
+        "vad_duration_sec", "whisper_ms", "total_latency_ms", "transcript"
     ])
-    _csv_file.flush()
+    csv_handle.flush()
+
+# Initialize Transcriber & Segmenter instances once
+transcriber = WhisperTranscriber(model_size="base", device="cpu", compute_type="int8")
+segmenter = AudioSegmenter(min_speech_duration=0.1, min_silence_duration=0.5)
 
 
-def log_transcript_row(language, language_prob, vad_duration, whisper_ms, total_ms, text):
-    _csv_writer.writerow([
-        datetime.now().isoformat(timespec="seconds"),
-        language,
-        f"{language_prob:.2f}",
-        f"{vad_duration:.2f}" if vad_duration is not None else "",
-        f"{whisper_ms:.0f}",
-        f"{total_ms:.0f}",
-        text,
-    ])
-    _csv_file.flush()  # write immediately so you can tail the file live
-
-# --- Local Whisper model, loaded once at startup ---
-# Sizes (accuracy vs speed): tiny < base < small < medium < large
-# "base" is a reasonable default on CPU. Go smaller ("tiny") for lower
-# latency, larger ("small"/"medium") for better accuracy if your machine
-# can handle it (much faster with a GPU: device="cuda").
-WHISPER_MODEL_SIZE = "base"
-logger.info("loading local Whisper model '%s' (first run downloads it)...", WHISPER_MODEL_SIZE)
-whisper_model = WhisperModel(WHISPER_MODEL_SIZE, device="cpu", compute_type="int8")
-logger.info("Whisper model loaded.")
-
-
-TARGET_SAMPLE_RATE = 16000  # what Whisper was trained on
-
-
-def _downmix_to_mono(samples: np.ndarray, num_channels: int) -> np.ndarray:
-    """Average interleaved channels down to one.
-
-    Replaces audioop.tomono, which -- along with the rest of the audioop
-    module -- was removed from the standard library in Python 3.13.
+async def handle_track(track: rtc.Track):
     """
-    if num_channels <= 1:
-        return samples
-    # Drop a trailing partial frame so the reshape is always exact.
-    usable = (samples.size // num_channels) * num_channels
-    return samples[:usable].reshape(-1, num_channels).mean(axis=1)
-
-
-def _resample(samples: np.ndarray, in_rate: int, out_rate: int) -> np.ndarray:
-    """Resample mono float32 audio. Replaces audioop.ratecv (removed in 3.13).
-
-    Downsampling is low-passed first: everything above the new Nyquist
-    frequency would otherwise fold back into the audible band as aliasing
-    noise, which costs real accuracy on fricatives and sibilants -- exactly
-    the sounds a pronunciation tutor cannot afford to garble.
+    Consumes utterances yielded by the VAD segmenter and passes them to Whisper.
     """
-    if samples.size == 0 or in_rate == out_rate:
-        return samples.astype(np.float32)
+    async for utterance in segmenter.process_track(track):
+        logger.info("[VAD] Utterance detected (%.2fs)", utterance.vad_duration_sec)
 
-    if in_rate > out_rate:
-        # Boxcar average over the decimation ratio: cheap, zero-phase, and
-        # good enough for the 48k -> 16k case that LiveKit actually produces.
-        width = int(round(in_rate / out_rate))
-        if width > 1:
-            kernel = np.ones(width, dtype=np.float32) / width
-            samples = np.convolve(samples, kernel, mode="same")
+        text, lang, prob, whisper_ms = transcriber.transcribe(utterance.frames)
+        total_latency_ms = (time.perf_counter() - utterance.end_time) * 1000
 
-    out_len = int(round(samples.size * out_rate / in_rate))
-    if out_len <= 0:
-        return np.array([], dtype=np.float32)
+        if text:
+            logger.info("TRANSCRIPT: %s", text)
+            logger.info("[LATENCY] lang=%s whisper=%.0fms total=%.0fms", lang, whisper_ms, total_latency_ms)
 
-    # Map each output sample back onto the input timeline and interpolate.
-    src_positions = np.linspace(0, samples.size - 1, out_len)
-    return np.interp(
-        src_positions, np.arange(samples.size), samples
-    ).astype(np.float32)
-
-
-def frames_to_float32(frames: list[rtc.AudioFrame]) -> np.ndarray:
-    """Concatenate buffered LiveKit audio frames into one float32 array
-    at 16kHz mono, range [-1, 1] -- the format Whisper expects.
-
-    LiveKit typically captures mic audio at 48kHz. Whisper was trained on
-    16kHz audio, so feeding it 48kHz samples directly makes it think 1
-    real second of audio is 3 seconds long, and the "speech" it hears is
-    effectively pitch-shifted/stretched -- producing garbage transcripts.
-    This resamples down to 16kHz (and downmixes to mono) before handing
-    audio to Whisper.
-    """
-    if not frames:
-        return np.array([], dtype=np.float32)
-
-    pcm_int16 = np.frombuffer(
-        b"".join(f.data.tobytes() for f in frames), dtype=np.int16
-    )
-    # Convert to float BEFORE mixing so channel averaging cannot overflow.
-    samples = pcm_int16.astype(np.float32) / 32768.0
-    samples = _downmix_to_mono(samples, frames[0].num_channels)
-    return _resample(samples, frames[0].sample_rate, TARGET_SAMPLE_RATE)
+            csv_writer.writerow([
+                datetime.now().isoformat(timespec="seconds"),
+                lang,
+                f"{prob:.2f}",
+                f"{utterance.vad_duration_sec:.2f}",
+                f"{whisper_ms:.0f}",
+                f"{total_latency_ms:.0f}",
+                text,
+            ])
+            csv_handle.flush()
+        else:
+            logger.info("[Whisper] No speech detected in segment.")
 
 
 async def entrypoint(ctx: agents.JobContext):
     await ctx.connect(auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY)
-    logger.info("connected to room: %s", ctx.room.name)
-
-    # --- Silero VAD: flags start-of-speech / end-of-speech in real time ---
-    vad = silero.VAD.load(
-        min_speech_duration=0.1,   # ignore blips shorter than this
-        min_silence_duration=0.5,  # how much silence = "end of utterance"
-    )
-
-    async def transcribe_track(track: rtc.Track):
-        vad_stream = vad.stream()
-        speech_start_time = None
-        is_speaking = False
-        utterance_frames: list[rtc.AudioFrame] = []
-        # Small rolling buffer of recent frames, so the utterance capture
-        # includes a bit of audio from just before VAD detects speech
-        # started (VAD needs a few frames of context before it fires).
-        preroll: collections.deque = collections.deque(maxlen=15)  # ~0.3s
-
-        async def consume_vad_events():
-            nonlocal speech_start_time, is_speaking, utterance_frames
-            async for event in vad_stream:
-                if event.type == agents.vad.VADEventType.START_OF_SPEECH:
-                    speech_start_time = time.perf_counter()
-                    is_speaking = True
-                    utterance_frames = list(preroll)  # seed with pre-speech audio
-                    logger.info("[VAD] speech started")
-
-                elif event.type == agents.vad.VADEventType.END_OF_SPEECH:
-                    is_speaking = False
-                    t_end_of_speech = time.perf_counter()
-                    vad_latency = (
-                        t_end_of_speech - speech_start_time
-                        if speech_start_time else None
-                    )
-                    logger.info(
-                        "[VAD] speech ended (utterance duration: %.2fs)",
-                        vad_latency if vad_latency else -1.0,
-                    )
-
-                    # Grab this utterance's frames and reset the buffer
-                    # immediately, so the NEXT utterance starts clean
-                    # instead of accumulating old audio.
-                    frames_to_transcribe = utterance_frames
-                    utterance_frames = []
-
-                    if not frames_to_transcribe:
-                        logger.warning("[VAD] end-of-speech with no buffered audio, skipping")
-                        continue
-
-                    logger.info(
-                        "[Audio] captured at %dHz, %d channel(s) -- resampling to 16kHz for Whisper",
-                        frames_to_transcribe[0].sample_rate,
-                        frames_to_transcribe[0].num_channels,
-                    )
-
-                    audio_np = frames_to_float32(frames_to_transcribe)
-                    t_whisper_start = time.perf_counter()
-                    segments, info = whisper_model.transcribe(
-                        audio_np,
-                        language=None,  # None = auto-detect (multilingual)
-                    )
-                    text = " ".join(seg.text.strip() for seg in segments).strip()
-                    t_whisper_end = time.perf_counter()
-
-                    whisper_latency = t_whisper_end - t_whisper_start
-                    total_latency = t_whisper_end - t_end_of_speech
-
-                    if text:
-                        logger.info("TRANSCRIPT: %s", text)
-                        logger.info(
-                            "[LATENCY] language=%s  whisper=%.0fms  "
-                            "end_of_speech_to_text=%.0fms",
-                            info.language, whisper_latency * 1000, total_latency * 1000,
-                        )
-                        log_transcript_row(
-                            language=info.language,
-                            language_prob=info.language_probability,
-                            vad_duration=vad_latency,
-                            whisper_ms=whisper_latency * 1000,
-                            total_ms=total_latency * 1000,
-                            text=text,
-                        )
-                    else:
-                        logger.info("[Whisper] no speech detected in buffered audio")
-
-        asyncio.create_task(consume_vad_events())
-
-        audio_stream = rtc.AudioStream(track)
-        async for audio_event in audio_stream:
-            frame = audio_event.frame
-            vad_stream.push_frame(frame)
-            preroll.append(frame)
-            if is_speaking:
-                utterance_frames.append(frame)
+    logger.info("Connected to room: %s", ctx.room.name)
 
     @ctx.room.on("track_subscribed")
-    def on_track_subscribed(
-        track: rtc.Track,
-        publication: rtc.TrackPublication,
-        participant: rtc.RemoteParticipant,
-    ):
+    def on_track_subscribed(track: rtc.Track, publication: rtc.TrackPublication, participant: rtc.RemoteParticipant):
         if track.kind == rtc.TrackKind.KIND_AUDIO:
-            logger.info("subscribed to audio track from %s", participant.identity)
-            asyncio.create_task(transcribe_track(track))
+            logger.info("Subscribed to audio from %s", participant.identity)
+            asyncio.create_task(handle_track(track))
 
 
 if __name__ == "__main__":
-    agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint))
-    
-    
+    options = agents.WorkerOptions(
+        entrypoint_fnc=entrypoint,
+        agent_name="stt-agent",
+    )
+    agents.cli.run_app(options)

@@ -1,0 +1,1403 @@
+INFO:stt-only:loading local Whisper model 'base' (first run downloads it)...
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/agent-harnesses "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/tree/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66?recursive=true&expand=false "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: HEAD https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/config.json "HTTP/1.1 307 Temporary Redirect"
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+INFO:httpx:HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Systran/faster-whisper-base/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/config.json?%2FSystran%2Ffaster-whisper-base%2Fresolve%2Febe41f70d5b6dfa9166e2c581c45c9c0cfc57b66%2Fconfig.json=&etag=%22867cf1a0fece1394e01d55e287ba2f09a577c046%22 "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/resolve-cache/models/Systran/faster-whisper-base/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/config.json?%2FSystran%2Ffaster-whisper-base%2Fresolve%2Febe41f70d5b6dfa9166e2c581c45c9c0cfc57b66%2Fconfig.json=&etag=%22867cf1a0fece1394e01d55e287ba2f09a577c046%22 "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: HEAD https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/tokenizer.json "HTTP/1.1 307 Temporary Redirect"
+INFO:httpx:HTTP Request: HEAD https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/vocabulary.txt "HTTP/1.1 307 Temporary Redirect"
+INFO:httpx:HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Systran/faster-whisper-base/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/tokenizer.json?%2FSystran%2Ffaster-whisper-base%2Fresolve%2Febe41f70d5b6dfa9166e2c581c45c9c0cfc57b66%2Ftokenizer.json=&etag=%227818adb6de9fa3064d3ff81226fdd675be1f6344%22 "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Systran/faster-whisper-base/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/vocabulary.txt?%2FSystran%2Ffaster-whisper-base%2Fresolve%2Febe41f70d5b6dfa9166e2c581c45c9c0cfc57b66%2Fvocabulary.txt=&etag=%22c9074644d9d1205686f16d411564729461324b75%22 "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/resolve-cache/models/Systran/faster-whisper-base/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/tokenizer.json?%2FSystran%2Ffaster-whisper-base%2Fresolve%2Febe41f70d5b6dfa9166e2c581c45c9c0cfc57b66%2Ftokenizer.json=&etag=%227818adb6de9fa3064d3ff81226fdd675be1f6344%22 "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/resolve-cache/models/Systran/faster-whisper-base/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/vocabulary.txt?%2FSystran%2Ffaster-whisper-base%2Fresolve%2Febe41f70d5b6dfa9166e2c581c45c9c0cfc57b66%2Fvocabulary.txt=&etag=%22c9074644d9d1205686f16d411564729461324b75%22 "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/xet-read-token/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66 "HTTP/1.1 200 OK"
+INFO:stt-only:Whisper model loaded.
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :63008
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:received job request
+DEBUG:livekit.agents:received assignment
+WARNING:livekit.agents:no warmed process available for job, waiting for one to be created
+INFO:livekit.agents:initializing job runner
+DEBUG:asyncio:Using proactor: IocpProactor
+INFO:livekit.agents:job runner initialized
+INFO:stt-only:connected to room: console-e627bae5
+INFO:stt-only:subscribed to audio track from <local-participant>
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 2.62s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:02.770
+INFO:faster_whisper:Detected language 'en' with probability 0.46
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-only:TRANSCRIPT: Hello.
+INFO:stt-only:[LATENCY] language=en  whisper=1601ms  end_of_speech_to_text=1604ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.84s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.990
+INFO:faster_whisper:Detected language 'en' with probability 0.58
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.504089 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.753099 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 7.28s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:07.430
+INFO:faster_whisper:Detected language 'de' with probability 0.56
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.174697 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.420457 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.4 (-1.507784 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.6 (-1.420457 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-2.522266 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-3.758766 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-only:TRANSCRIPT: Ich bin mit der Eventspieler.
+INFO:stt-only:[LATENCY] language=de  whisper=4113ms  end_of_speech_to_text=4122ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 1.37s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:01.520
+INFO:faster_whisper:Detected language 'en' with probability 0.60
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-only:TRANSCRIPT: Thank you very much.
+INFO:stt-only:[LATENCY] language=en  whisper=1739ms  end_of_speech_to_text=1741ms
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 3.35s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:03.500
+INFO:faster_whisper:Detected language 'en' with probability 0.29
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.210427 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.615356 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:livekit.agents:received job request
+DEBUG:livekit.agents:received assignment
+WARNING:livekit.agents:no warmed process available for job, waiting for one to be created
+INFO:livekit.agents:initializing job runner
+DEBUG:asyncio:Using proactor: IocpProactor
+INFO:livekit.agents:job runner initialized
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:connected to room: console-fd970009
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:subscribed to audio track from <local-participant>
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 16.04s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:16.190
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:faster_whisper:Detected language 'el' with probability 0.16
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:livekit.agents:shutting down worker
+DEBUG:livekit.agents:shutting down job task
+DEBUG:livekit.agents:job exiting
+DEBUG:livekit.agents:configuring session recording
+DEBUG:livekit.agents:http_session(): closing the httpclient ctx
+DEBUG:livekit.agents:http_session(): creating a new httpclient ctx
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (7.625000 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (11.464286 > 2.400000)
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='Task-41' coro=<VADStream._main_task() running at E:\vtutor\v-tutor\.venv\Lib\site-packages\livekit\agents\utils\log.py:17> wait_for=<Future pending cb=[Task.task_wakeup()]> cb=[VADStream.__init__.<locals>.<lambda>() at E:\vtutor\v-tutor\.venv\Lib\site-packages\livekit\agents\vad.py:115]>
+ERROR:livekit.plugins.silero:Error in _main_task
+Traceback (most recent call last):
+  File "E:\vtutor\v-tutor\.venv\Lib\site-packages\livekit\agents\utils\aio\channel.py", line 106, in recv
+    await g
+GeneratorExit
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\vtutor\v-tutor\.venv\Lib\site-packages\livekit\agents\utils\log.py", line 17, in async_fn_logs
+    return await fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\vtutor\v-tutor\.venv\Lib\site-packages\livekit\plugins\silero\vad.py", line 356, in _main_task
+    async for input_frame in self._input_ch:
+    ...<242 lines>...
+                )
+  File "E:\vtutor\v-tutor\.venv\Lib\site-packages\livekit\agents\utils\aio\channel.py", line 176, in __anext__
+    return await self.recv()
+           ^^^^^^^^^^^^^^^^^
+  File "E:\vtutor\v-tutor\.venv\Lib\site-packages\livekit\agents\utils\aio\channel.py", line 110, in recv
+    g.cancel()
+    ~~~~~~~~^^
+  File "D:\Python313\Lib\asyncio\base_events.py", line 833, in call_soon
+    self._check_closed()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "D:\Python313\Lib\asyncio\base_events.py", line 556, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='TTS._metrics_task' coro=<VADStream._metrics_monitor_task() running at E:\vtutor\v-tutor\.venv\Lib\site-packages\livekit\agents\vad.py:126> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='Task-42' coro=<entrypoint.<locals>.transcribe_track.<locals>.consume_vad_events() running at E:\vtutor\v-tutor\stt\agent.py:141> wait_for=<Future finished result=True>>
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.4 (12.653846 > 2.400000)
+ERROR:livekit.agents:job did not ack shutdown in time
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.6 (4.803922 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-2.636714 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-3.812567 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-only:TRANSCRIPT: Ενιλικά μπορείς να γίνονται οπτυγή της δηλαδήstellου να τα ζωίτε. Ενείς γιατί δεν θα δείξει πολλοί. Κι φοίλες που σαν παρήχοι, θα πρωθέρια είναι να βοηθώ μόνος. Θα μάλλαγε η άντε του Ανήρια.
+INFO:stt-only:[LATENCY] language=el  whisper=15713ms  end_of_speech_to_text=15726ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+DEBUG:livekit.agents:shutting down job task
+DEBUG:livekit.agents:job exiting
+INFO:stt-only:[VAD] speech started
+DEBUG:livekit.agents:configuring session recording
+DEBUG:livekit.agents:http_session(): closing the httpclient ctx
+DEBUG:livekit.agents:http_session(): creating a new httpclient ctx
+WARNING:livekit.plugins.silero:inference is slower than realtime
+ERROR:livekit.plugins.silero:Error in _main_task
+Traceback (most recent call last):
+  File "E:\vtutor\v-tutor\.venv\Lib\site-packages\livekit\agents\utils\log.py", line 17, in async_fn_logs
+    return await fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\vtutor\v-tutor\.venv\Lib\site-packages\livekit\plugins\silero\vad.py", line 422, in _main_task
+    p = await self._loop.run_in_executor(None, self._model, inference_f32_data)
+              ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Python313\Lib\asyncio\base_events.py", line 894, in run_in_executor
+    self._check_default_executor()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "D:\Python313\Lib\asyncio\base_events.py", line 560, in _check_default_executor
+    raise RuntimeError('Executor shutdown has been called')
+RuntimeError: Executor shutdown has been called
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='Task-26' coro=<entrypoint.<locals>.transcribe_track.<locals>.consume_vad_events() running at E:\vtutor\v-tutor\stt\agent.py:141> wait_for=<Future finished result=True>>
+ERROR:asyncio:Task exception was never retrieved
+future: <Task finished name='Task-25' coro=<VADStream._main_task() done, defined at E:\vtutor\v-tutor\.venv\Lib\site-packages\livekit\agents\utils\log.py:14> exception=RuntimeError('Executor shutdown has been called')>
+Traceback (most recent call last):
+  File "E:\vtutor\v-tutor\.venv\Lib\site-packages\livekit\agents\utils\log.py", line 17, in async_fn_logs
+    return await fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\vtutor\v-tutor\.venv\Lib\site-packages\livekit\plugins\silero\vad.py", line 422, in _main_task
+    p = await self._loop.run_in_executor(None, self._model, inference_f32_data)
+              ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Python313\Lib\asyncio\base_events.py", line 894, in run_in_executor
+    self._check_default_executor()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "D:\Python313\Lib\asyncio\base_events.py", line 560, in _check_default_executor
+    raise RuntimeError('Executor shutdown has been called')
+RuntimeError: Executor shutdown has been called
+INFO:stt-only:loading local Whisper model 'base' (first run downloads it)...
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+INFO:stt-only:Whisper model loaded.
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :52362
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:received job request
+DEBUG:livekit.agents:received assignment
+WARNING:livekit.agents:no warmed process available for job, waiting for one to be created
+INFO:livekit.agents:initializing job runner
+DEBUG:asyncio:Using proactor: IocpProactor
+INFO:livekit.agents:job runner initialized
+INFO:livekit.agents:shutting down worker
+INFO:stt-only:connected to room: console-e9be1e6c
+DEBUG:livekit.agents:shutting down job task
+DEBUG:livekit.agents:job exiting
+DEBUG:livekit.agents:configuring session recording
+DEBUG:livekit.agents:http_session(): closing the httpclient ctx
+DEBUG:livekit.agents:http_session(): creating a new httpclient ctx
+INFO:stt-only:loading local Whisper model 'base' (first run downloads it)...
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+INFO:stt-only:Whisper model loaded.
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :51829
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:shutting down worker
+INFO:stt-only:loading local Whisper model 'base' (first run downloads it)...
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+INFO:stt-only:Whisper model loaded.
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :54045
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:shutting down worker
+INFO:stt-only:loading local Whisper model 'base' (first run downloads it)...
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+INFO:stt-only:Whisper model loaded.
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :59042
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:shutting down worker
+INFO:stt-only:loading local Whisper model 'base' (first run downloads it)...
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+INFO:stt-only:Whisper model loaded.
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :59675
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:shutting down worker
+INFO:stt-only:loading local Whisper model 'base' (first run downloads it)...
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+INFO:stt-only:Whisper model loaded.
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :54310
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:shutting down worker
+INFO:stt-only:loading local Whisper model 'base' (first run downloads it)...
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+INFO:stt-only:Whisper model loaded.
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :64253
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:shutting down worker
+INFO:stt-only:loading local Whisper model 'base' (first run downloads it)...
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+INFO:stt-only:Whisper model loaded.
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :56435
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:shutting down worker
+INFO:stt-only:loading local Whisper model 'base' (first run downloads it)...
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+INFO:stt-only:Whisper model loaded.
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :60308
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:shutting down worker
+INFO:stt-only:loading local Whisper model 'base' (first run downloads it)...
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+INFO:stt-only:Whisper model loaded.
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :53038
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:shutting down worker
+INFO:stt-only:loading local Whisper model 'base' (first run downloads it)...
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+INFO:stt-only:Whisper model loaded.
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :55399
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:shutting down worker
+INFO:stt-only:loading local Whisper model 'base' (first run downloads it)...
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+INFO:stt-only:Whisper model loaded.
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :51679
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:received job request
+DEBUG:livekit.agents:received assignment
+WARNING:livekit.agents:no warmed process available for job, waiting for one to be created
+INFO:livekit.agents:initializing job runner
+DEBUG:asyncio:Using proactor: IocpProactor
+INFO:livekit.agents:job runner initialized
+INFO:stt-only:connected to room: console-90abbb80
+INFO:stt-only:subscribed to audio track from <local-participant>
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 1.89s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:02.040
+INFO:faster_whisper:Detected language 'en' with probability 0.35
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-only:TRANSCRIPT: Hello? Hello?
+INFO:stt-only:[LATENCY] language=en  whisper=1312ms  end_of_speech_to_text=1316ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.90s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:01.050
+INFO:faster_whisper:Detected language 'en' with probability 0.34
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.022330 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.090594 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.4 (-1.090594 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.6 (-1.090594 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-1.772263 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-2.127251 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-only:TRANSCRIPT: Thank you.
+INFO:stt-only:[LATENCY] language=en  whisper=2289ms  end_of_speech_to_text=2291ms
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 1.40s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:01.550
+INFO:faster_whisper:Detected language 'hi' with probability 0.18
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (16.593750 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (17.903226 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.4 (12.736842 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.6 (-1.533764 < -1.000000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.8 (4.635135 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-3.457556 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-only:TRANSCRIPT: रासे द्र द्वार्णिवाण।
+INFO:stt-only:[LATENCY] language=hi  whisper=15519ms  end_of_speech_to_text=15523ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.17s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.320
+INFO:faster_whisper:Detected language 'en' with probability 0.54
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.292220 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.785951 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 2.54s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:02.700
+INFO:faster_whisper:Detected language 'el' with probability 0.16
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-only:TRANSCRIPT: Πρακέρια!
+INFO:stt-only:[LATENCY] language=el  whisper=1529ms  end_of_speech_to_text=1533ms
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 2.07s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:02.220
+INFO:faster_whisper:Detected language 'hi' with probability 0.36
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (15.857143 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (17.760000 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.4 (20.181818 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.6 (10.022727 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.8 (3.713115 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-3.163107 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-only:TRANSCRIPT: Hemat Satin, Fujiya Harikelsu dhu dhu dhu dhu dhu dhu dhu
+INFO:stt-only:[LATENCY] language=hi  whisper=19863ms  end_of_speech_to_text=19866ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.23s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.380
+INFO:faster_whisper:Detected language 'en' with probability 0.49
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-only:TRANSCRIPT: Thank you very much.
+INFO:stt-only:[LATENCY] language=en  whisper=1402ms  end_of_speech_to_text=1403ms
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 9.34s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:09.490
+INFO:faster_whisper:Detected language 'hi' with probability 0.26
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (19.931034 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (14.638889 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.4 (11.080000 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.6 (15.857143 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-2.084601 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.804949 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.10s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.250
+INFO:faster_whisper:Detected language 'en' with probability 0.58
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-only:TRANSCRIPT: Thank you.
+INFO:stt-only:[LATENCY] language=en  whisper=1673ms  end_of_speech_to_text=1674ms
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 20.20s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:20.350
+INFO:faster_whisper:Detected language 'hi' with probability 0.40
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (15.612903 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (14.575758 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.4 (9.095238 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.6 (5.461538 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-1.957988 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-3.474242 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-only:TRANSCRIPT: -> कर节larda stellen ये कर खी जीिज हो ले ची अदंचे कु? -> कि अचि कर खो द़िग अच चेः बहिब पहित कु? ->को हैफ़ किर जेख खी उग़ दिएग बहिफ़ुपाचे कि उदू नहीं कु? -> लिध हो इेफूफाबु。 -> अबाफ़ु़ु़ू लहीं कु? -> लहीं कु?
+INFO:stt-only:[LATENCY] language=hi  whisper=22498ms  end_of_speech_to_text=22532ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 1.17s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:01.310
+INFO:faster_whisper:Detected language 'en' with probability 0.63
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-only:TRANSCRIPT: I'm back with no-
+INFO:stt-only:[LATENCY] language=en  whisper=1684ms  end_of_speech_to_text=1688ms
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.49s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.640
+INFO:faster_whisper:Detected language 'en' with probability 0.51
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.157376 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.762212 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 1.74s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:01.890
+INFO:faster_whisper:Detected language 'en' with probability 0.71
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-only:TRANSCRIPT: Maybe it was fun.
+INFO:stt-only:[LATENCY] language=en  whisper=1618ms  end_of_speech_to_text=1625ms
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 4.60s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:04.750
+INFO:faster_whisper:Detected language 'hi' with probability 0.63
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.214382 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.261023 < -1.000000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.4 (7.783784 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.6 (-1.387501 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-1.716340 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-3.214349 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-only:TRANSCRIPT: This perverse audio r has potential for that one.
+INFO:stt-only:[LATENCY] language=hi  whisper=5354ms  end_of_speech_to_text=5359ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 2.51s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:02.660
+INFO:faster_whisper:Detected language 'hi' with probability 0.63
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (17.760000 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (17.760000 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.4 (21.708333 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.6 (12.357143 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-1.700266 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-2.735069 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-only:TRANSCRIPT: नक्र के जो भ़राएस को पाडिरास को प्डिन्तिंकमे बेना हैं।
+INFO:stt-only:[LATENCY] language=hi  whisper=17124ms  end_of_speech_to_text=17131ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 13.05s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:13.200
+INFO:faster_whisper:Detected language 'hi' with probability 0.49
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (19.931034 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (13.875000 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.4 (13.575758 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.6 (9.717391 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.8 (4.314050 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-4.386784 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+DEBUG:faster_whisper:Processing segment at 00:10.060
+INFO:stt-only:TRANSCRIPT: bhojariGR alik grateful be afraid to do that be afraid to do that
+INFO:stt-only:[LATENCY] language=hi  whisper=41071ms  end_of_speech_to_text=41089ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.22s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.370
+INFO:faster_whisper:Detected language 'en' with probability 0.60
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.341683 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.773288 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 1.76s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:01.910
+INFO:faster_whisper:Detected language 'en' with probability 0.27
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-only:TRANSCRIPT: Thank you very much.
+INFO:stt-only:[LATENCY] language=en  whisper=3843ms  end_of_speech_to_text=3848ms
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.09s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.230
+INFO:faster_whisper:Detected language 'en' with probability 0.62
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (23.615385 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.641969 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.780215 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.04s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.200
+INFO:faster_whisper:Detected language 'en' with probability 0.58
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (23.615385 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.456259 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.799595 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.18s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.330
+INFO:faster_whisper:Detected language 'en' with probability 0.68
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.054390 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.745550 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.46s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.610
+INFO:faster_whisper:Detected language 'en' with probability 0.42
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.223115 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.635824 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 1.15s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:01.300
+INFO:faster_whisper:Detected language 'en' with probability 0.80
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-only:TRANSCRIPT: Have a good time.
+INFO:stt-only:[LATENCY] language=en  whisper=1589ms  end_of_speech_to_text=1593ms
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.87s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:01.020
+INFO:faster_whisper:Detected language 'en' with probability 0.51
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.276055 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.711935 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 2.53s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:02.680
+INFO:faster_whisper:Detected language 'hi' with probability 0.27
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (12.771429 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (17.760000 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.4 (12.444444 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.6 (4.121739 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-1.829168 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-4.188726 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-only:TRANSCRIPT: यूके ती लाये ले यहाओराणे को धे वो ले विडाः
+INFO:stt-only:[LATENCY] language=hi  whisper=11623ms  end_of_speech_to_text=11631ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.09s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.240
+INFO:faster_whisper:Detected language 'en' with probability 0.54
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (23.615385 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.236781 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.811908 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.38s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.530
+INFO:faster_whisper:Detected language 'en' with probability 0.47
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.257909 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.661532 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.12s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.260
+INFO:faster_whisper:Detected language 'en' with probability 0.60
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (23.615385 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.616823 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.745681 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.38s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.530
+INFO:faster_whisper:Detected language 'en' with probability 0.55
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.181713 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.821221 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.05s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.200
+INFO:faster_whisper:Detected language 'en' with probability 0.53
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.093942 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.767618 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.04s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.190
+INFO:faster_whisper:Detected language 'en' with probability 0.69
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.072707 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.607597 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.02s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.180
+INFO:faster_whisper:Detected language 'en' with probability 0.52
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.066651 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.793453 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.07s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.220
+INFO:faster_whisper:Detected language 'en' with probability 0.61
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (22.400000 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.909675 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.632386 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.11s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.260
+INFO:faster_whisper:Detected language 'en' with probability 0.53
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.041778 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.774666 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 2.16s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:02.310
+INFO:faster_whisper:Detected language 'en' with probability 0.46
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.072321 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.745521 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 3.44s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:03.590
+INFO:faster_whisper:Detected language 'en' with probability 0.20
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-only:TRANSCRIPT: Get out of my mouth, please, and get out of my mouth.
+INFO:stt-only:[LATENCY] language=en  whisper=3361ms  end_of_speech_to_text=3367ms
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.04s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.200
+INFO:faster_whisper:Detected language 'en' with probability 0.67
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (23.615385 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.124972 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.659003 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.29s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.440
+INFO:faster_whisper:Detected language 'en' with probability 0.76
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.191925 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.669535 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.17s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.310
+INFO:faster_whisper:Detected language 'en' with probability 0.58
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (23.615385 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (21.214286 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.4 (-1.602605 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.738911 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:stt-only:[VAD] speech ended (utterance duration: 0.13s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:00.280
+INFO:faster_whisper:Detected language 'en' with probability 0.62
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (23.615385 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.556376 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.791693 > 0.600000)
+INFO:stt-only:[Whisper] no speech detected in buffered audio
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech started
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-only:[VAD] speech ended (utterance duration: 4.69s)
+INFO:stt-only:[Audio] captured at 48000Hz, 1 channel(s) -- resampling to 16kHz for Whisper
+INFO:faster_whisper:Processing audio with duration 00:04.850
+INFO:faster_whisper:Detected language 'hi' with probability 0.48
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (15.031250 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (14.258065 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.4 (14.258065 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.6 (3.894309 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.8 (2.423913 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-1.453674 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-2.625636 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-only:TRANSCRIPT: घिग वसे प्रसए मोल जेप मिसे प्रहोहिवी तषे के कि प़शेस अवप Each भर apart, i am believing today.
+INFO:stt-only:[LATENCY] language=hi  whisper=16873ms  end_of_speech_to_text=16880ms
+INFO:livekit.agents:shutting down worker
+DEBUG:livekit.agents:shutting down job task
+DEBUG:livekit.agents:job exiting
+DEBUG:livekit.agents:configuring session recording
+DEBUG:livekit.agents:http_session(): closing the httpclient ctx
+DEBUG:livekit.agents:http_session(): creating a new httpclient ctx
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='Task-25' coro=<entrypoint.<locals>.transcribe_track.<locals>.consume_vad_events() running at E:\vtutor\v-tutor\stt\agent.py:141> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='TTS._metrics_task' coro=<VADStream._metrics_monitor_task() running at E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\vad.py:126> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='Task-24' coro=<VADStream._main_task() running at E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\log.py:17> wait_for=<Future pending cb=[Task.task_wakeup()]> cb=[VADStream.__init__.<locals>.<lambda>() at E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\vad.py:115]>
+ERROR:livekit.plugins.silero:Error in _main_task
+Traceback (most recent call last):
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\aio\channel.py", line 106, in recv
+    await g
+GeneratorExit
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\log.py", line 17, in async_fn_logs
+    return await fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\plugins\silero\vad.py", line 356, in _main_task
+    async for input_frame in self._input_ch:
+    ...<242 lines>...
+                )
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\aio\channel.py", line 176, in __anext__
+    return await self.recv()
+           ^^^^^^^^^^^^^^^^^
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\aio\channel.py", line 110, in recv
+    g.cancel()
+    ~~~~~~~~^^
+  File "D:\Python313\Lib\asyncio\base_events.py", line 833, in call_soon
+    self._check_closed()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "D:\Python313\Lib\asyncio\base_events.py", line 556, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :57210
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:received job request
+DEBUG:livekit.agents:received assignment
+WARNING:livekit.agents:no warmed process available for job, waiting for one to be created
+INFO:livekit.agents:initializing job runner
+DEBUG:asyncio:Using proactor: IocpProactor
+INFO:livekit.agents:job runner initialized
+INFO:stt-orchestrator:Connected to room: console-a2538ba5
+INFO:stt-orchestrator:Subscribed to audio from <local-participant>
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (2.24s)
+INFO:faster_whisper:Processing audio with duration 00:02.390
+INFO:faster_whisper:Detected language 'en' with probability 0.38
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.120423 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.676538 > 0.600000)
+INFO:stt-orchestrator:[Whisper] No speech detected in segment.
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:livekit.agents:received job request
+DEBUG:livekit.agents:received assignment
+WARNING:livekit.agents:no warmed process available for job, waiting for one to be created
+INFO:livekit.agents:initializing job runner
+DEBUG:asyncio:Using proactor: IocpProactor
+INFO:livekit.agents:job runner initialized
+INFO:stt-orchestrator:Connected to room: console-51410436
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:Subscribed to audio from <local-participant>
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (0.96s)
+INFO:faster_whisper:Processing audio with duration 00:01.110
+INFO:faster_whisper:Detected language 'en' with probability 0.48
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.022526 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.735298 > 0.600000)
+INFO:stt-orchestrator:[Whisper] No speech detected in segment.
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (0.07s)
+INFO:faster_whisper:Processing audio with duration 00:00.220
+INFO:faster_whisper:Detected language 'en' with probability 0.63
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.149603 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.759240 > 0.600000)
+INFO:stt-orchestrator:[Whisper] No speech detected in segment.
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (0.93s)
+INFO:faster_whisper:Processing audio with duration 00:01.080
+INFO:faster_whisper:Detected language 'en' with probability 0.33
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-orchestrator:TRANSCRIPT: Hello.
+INFO:stt-orchestrator:[LATENCY] lang=en whisper=1250ms total=1251ms
+INFO:stt-orchestrator:[VAD] Utterance detected (0.71s)
+INFO:faster_whisper:Processing audio with duration 00:00.860
+INFO:faster_whisper:Detected language 'en' with probability 0.37
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-orchestrator:TRANSCRIPT: Yeah.
+INFO:stt-orchestrator:[LATENCY] lang=en whisper=1276ms total=1279ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+WARNING:livekit:livekit_api::signal_client:660:livekit_api::signal_client - dropping pass-through signal — no stream available
+DEBUG:livekit.agents:shutting down job task
+DEBUG:livekit.agents:configuring session recording
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+DEBUG:livekit.agents:http_session(): closing the httpclient ctx
+DEBUG:livekit.agents:http_session(): creating a new httpclient ctx
+INFO:stt-orchestrator:[VAD] Utterance detected (0.96s)
+INFO:faster_whisper:Processing audio with duration 00:01.110
+DEBUG:livekit.agents:job exiting
+INFO:faster_whisper:Detected language 'en' with probability 0.63
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.103541 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.119172 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.4 (-1.119172 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.6 (-1.142500 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-1.119172 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-2.149407 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-orchestrator:TRANSCRIPT: Let's start this
+INFO:stt-orchestrator:[LATENCY] lang=en whisper=2491ms total=2493ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+ERROR:livekit:livekit::rtc_engine::rtc_session:683:livekit::rtc_engine::rtc_session - publisher data channel '_reliable' closed unexpectedly
+ERROR:livekit:livekit::rtc_engine::rtc_session:683:livekit::rtc_engine::rtc_session - publisher data channel '_lossy' closed unexpectedly
+ERROR:livekit:livekit::rtc_engine::rtc_session:683:livekit::rtc_engine::rtc_session - publisher data channel '_data_track' closed unexpectedly
+DEBUG:livekit.agents:shutting down job task
+DEBUG:livekit.agents:job exiting
+WARNING:livekit:livekit_api::signal_client:660:livekit_api::signal_client - dropping pass-through signal — no stream available
+DEBUG:livekit.agents:configuring session recording
+DEBUG:livekit.agents:http_session(): closing the httpclient ctx
+DEBUG:livekit.agents:http_session(): creating a new httpclient ctx
+INFO:livekit.agents:received job request
+DEBUG:livekit.agents:received assignment
+WARNING:livekit.agents:no warmed process available for job, waiting for one to be created
+INFO:livekit.agents:initializing job runner
+INFO:livekit.agents:job runner initialized
+DEBUG:asyncio:Using proactor: IocpProactor
+INFO:stt-orchestrator:Connected to room: console-79728e74
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:Subscribed to audio from <local-participant>
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (0.61s)
+INFO:faster_whisper:Processing audio with duration 00:00.760
+INFO:faster_whisper:Detected language 'en' with probability 0.57
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.121408 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.697554 > 0.600000)
+INFO:stt-orchestrator:[Whisper] No speech detected in segment.
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:livekit.agents:shutting down worker
+DEBUG:livekit.agents:shutting down job task
+DEBUG:livekit.agents:job exiting
+DEBUG:livekit.agents:configuring session recording
+DEBUG:livekit.agents:http_session(): closing the httpclient ctx
+DEBUG:livekit.agents:http_session(): creating a new httpclient ctx
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='Task-39' coro=<handle_track() running at E:\vtutor\v-tutor\stt\agent.py:52> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='TTS._metrics_task' coro=<VADStream._metrics_monitor_task() running at E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\vad.py:126> wait_for=<Future finished result=True>>
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='Task-40' coro=<VADStream._main_task() running at E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\log.py:17> wait_for=<Future pending cb=[Task.task_wakeup()]> cb=[VADStream.__init__.<locals>.<lambda>() at E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\vad.py:115]>
+ERROR:livekit.plugins.silero:Error in _main_task
+Traceback (most recent call last):
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\aio\channel.py", line 106, in recv
+    await g
+GeneratorExit
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\log.py", line 17, in async_fn_logs
+    return await fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\plugins\silero\vad.py", line 356, in _main_task
+    async for input_frame in self._input_ch:
+    ...<242 lines>...
+                )
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\aio\channel.py", line 176, in __anext__
+    return await self.recv()
+           ^^^^^^^^^^^^^^^^^
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\aio\channel.py", line 110, in recv
+    g.cancel()
+    ~~~~~~~~^^
+  File "D:\Python313\Lib\asyncio\base_events.py", line 833, in call_soon
+    self._check_closed()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "D:\Python313\Lib\asyncio\base_events.py", line 556, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='Task-59' coro=<handle_track() running at E:\vtutor\v-tutor\stt\agent.py:52> wait_for=<Future cancelled>>
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='Task-60' coro=<VADStream._main_task() running at E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\log.py:17> wait_for=<Future cancelled> cb=[VADStream.__init__.<locals>.<lambda>() at E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\vad.py:115]>
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='TTS._metrics_task' coro=<VADStream._metrics_monitor_task() running at E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\vad.py:126> wait_for=<Future finished result=True>>
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :61780
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:shutting down worker
+INFO:httpx:HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+WARNING:livekit.agents:dev mode is deprecated and will be removed in a future release; use `lk agent dev` instead (https://docs.livekit.io/reference/developer-tools/livekit-cli/#setup)
+WARNING:livekit.agents:in-process auto-reload has been removed from the Python CLI; use `lk agent dev` for hot-reload
+DEBUG:asyncio:Using proactor: IocpProactor
+DEBUG:livekit.agents:no system trust store found, setting SSL_CERT_FILE to the certifi bundle
+INFO:livekit.agents:starting worker
+INFO:livekit.agents:plugin registered
+INFO:livekit.agents:HTTP server listening on :56580
+INFO:livekit.agents:registered worker
+INFO:livekit.agents:received job request
+DEBUG:livekit.agents:received assignment
+WARNING:livekit.agents:no warmed process available for job, waiting for one to be created
+INFO:livekit.agents:initializing job runner
+DEBUG:asyncio:Using proactor: IocpProactor
+INFO:livekit.agents:job runner initialized
+INFO:stt-orchestrator:Connected to room: console-cd63265f
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:Subscribed to audio from <local-participant>
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (5.64s)
+INFO:faster_whisper:Processing audio with duration 00:05.790
+INFO:faster_whisper:Detected language 'en' with probability 0.85
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-orchestrator:TRANSCRIPT: I don't know how long it's going to take for me to see who's the best, I don't know who's the best, I don't know who's the best
+INFO:stt-orchestrator:[LATENCY] lang=en whisper=1492ms total=1501ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (2.14s)
+INFO:faster_whisper:Processing audio with duration 00:02.290
+INFO:faster_whisper:Detected language 'hi' with probability 0.25
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (8.700000 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (13.575758 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.4 (8.236364 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.6 (12.948718 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.8 (3.846154 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-2.726013 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-orchestrator:TRANSCRIPT: जैनें बय कूने घह कूने फंारे कासरुएंिय
+INFO:stt-orchestrator:[LATENCY] lang=hi whisper=18585ms total=18589ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (0.09s)
+INFO:faster_whisper:Processing audio with duration 00:00.240
+INFO:faster_whisper:Detected language 'en' with probability 0.62
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.180604 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.617345 > 0.600000)
+INFO:stt-orchestrator:[Whisper] No speech detected in segment.
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-orchestrator:[VAD] Utterance detected (0.04s)
+INFO:faster_whisper:Processing audio with duration 00:00.180
+INFO:faster_whisper:Detected language 'en' with probability 0.62
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.136430 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.651393 > 0.600000)
+INFO:stt-orchestrator:[Whisper] No speech detected in segment.
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-orchestrator:[VAD] Utterance detected (0.14s)
+INFO:faster_whisper:Processing audio with duration 00:00.290
+INFO:faster_whisper:Detected language 'en' with probability 0.54
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.233446 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.770879 > 0.600000)
+INFO:stt-orchestrator:[Whisper] No speech detected in segment.
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (0.03s)
+INFO:faster_whisper:Processing audio with duration 00:00.180
+INFO:faster_whisper:Detected language 'en' with probability 0.54
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (23.615385 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (19.073171 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.4 (-2.082099 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.791064 > 0.600000)
+INFO:stt-orchestrator:[Whisper] No speech detected in segment.
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (0.12s)
+INFO:faster_whisper:Processing audio with duration 00:00.260
+INFO:faster_whisper:Detected language 'en' with probability 0.49
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.103501 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.686052 > 0.600000)
+INFO:stt-orchestrator:[Whisper] No speech detected in segment.
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (7.77s)
+INFO:faster_whisper:Processing audio with duration 00:07.920
+INFO:faster_whisper:Detected language 'es' with probability 0.38
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-orchestrator:TRANSCRIPT: ¡Suscríbete! ¡Halo! ¡Halo!
+INFO:stt-orchestrator:[LATENCY] lang=es whisper=1483ms total=1495ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (3.01s)
+INFO:faster_whisper:Processing audio with duration 00:03.160
+INFO:faster_whisper:Detected language 'en' with probability 0.71
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-orchestrator:TRANSCRIPT: Nettles! Nettles!
+INFO:stt-orchestrator:[LATENCY] lang=en whisper=1374ms total=1377ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (4.16s)
+INFO:faster_whisper:Processing audio with duration 00:04.310
+INFO:faster_whisper:Detected language 'de' with probability 0.17
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.188131 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.189107 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.4 (-1.189107 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.6 (-1.352392 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-2.133397 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-2.562272 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-orchestrator:TRANSCRIPT: Hallo!
+INFO:stt-orchestrator:[LATENCY] lang=de whisper=3217ms total=3224ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (2.27s)
+INFO:faster_whisper:Processing audio with duration 00:02.420
+INFO:faster_whisper:Detected language 'en' with probability 0.82
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (2.650000 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (27.791667 > 2.400000)
+INFO:stt-orchestrator:TRANSCRIPT: A lot of them, a lot of them. Thank you, ladies.
+INFO:stt-orchestrator:[LATENCY] lang=en whisper=3936ms total=3939ms
+INFO:stt-orchestrator:[VAD] Utterance detected (0.30s)
+INFO:faster_whisper:Processing audio with duration 00:00.450
+INFO:faster_whisper:Detected language 'en' with probability 0.69
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (23.615385 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.600857 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.605051 > 0.600000)
+INFO:stt-orchestrator:[Whisper] No speech detected in segment.
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (0.06s)
+INFO:faster_whisper:Processing audio with duration 00:00.210
+INFO:faster_whisper:Detected language 'en' with probability 0.59
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.138150 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.758059 > 0.600000)
+INFO:stt-orchestrator:[Whisper] No speech detected in segment.
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (0.05s)
+INFO:faster_whisper:Processing audio with duration 00:00.200
+INFO:faster_whisper:Detected language 'en' with probability 0.60
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.0 (29.640000 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.699881 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.749192 > 0.600000)
+INFO:stt-orchestrator:[Whisper] No speech detected in segment.
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (0.11s)
+INFO:faster_whisper:Processing audio with duration 00:00.270
+INFO:faster_whisper:Detected language 'en' with probability 0.77
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.021779 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.304938 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.4 (-1.386534 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.6 (-1.517942 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-1.684702 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-1.991337 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-orchestrator:TRANSCRIPT: Thank you very much.
+INFO:stt-orchestrator:[LATENCY] lang=en whisper=2487ms total=2488ms
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:stt-orchestrator:[VAD] Utterance detected (0.68s)
+INFO:faster_whisper:Processing audio with duration 00:00.830
+INFO:faster_whisper:Detected language 'en' with probability 0.72
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.065690 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.041221 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.4 (-1.081584 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.6 (-1.559678 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-1.523955 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-3.318705 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-orchestrator:TRANSCRIPT: Thank you.
+INFO:stt-orchestrator:[LATENCY] lang=en whisper=2597ms total=2599ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (0.07s)
+INFO:faster_whisper:Processing audio with duration 00:00.220
+INFO:faster_whisper:Detected language 'en' with probability 0.65
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.272359 < -1.000000)
+DEBUG:faster_whisper:No speech threshold is met (0.714450 > 0.600000)
+INFO:stt-orchestrator:[Whisper] No speech detected in segment.
+WARNING:livekit.plugins.silero:inference is slower than realtime
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (5.27s)
+INFO:faster_whisper:Processing audio with duration 00:05.420
+INFO:faster_whisper:Detected language 'es' with probability 0.34
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.477764 < -1.000000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.2 (14.607843 > 2.400000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.4 (2.787879 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.4 (-1.265086 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.6 (-1.793226 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-2.529169 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-3.614007 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-orchestrator:TRANSCRIPT: en el sector de la hora de comer a la poncho.
+INFO:stt-orchestrator:[LATENCY] lang=es whisper=4772ms total=4785ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (2.85s)
+INFO:faster_whisper:Processing audio with duration 00:03.000
+INFO:faster_whisper:Detected language 'en' with probability 0.70
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.110535 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.174478 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.4 (-1.237344 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.6 (-1.407024 < -1.000000)
+DEBUG:faster_whisper:Compression ratio threshold is not met with temperature 0.8 (2.464286 > 2.400000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-1.256448 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-2.698596 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-orchestrator:TRANSCRIPT: Maybe what you all can work on is your own.
+INFO:stt-orchestrator:[LATENCY] lang=en whisper=3128ms total=3133ms
+INFO:stt-orchestrator:[VAD] Utterance detected (0.37s)
+INFO:faster_whisper:Processing audio with duration 00:00.520
+INFO:faster_whisper:Detected language 'en' with probability 0.48
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-orchestrator:TRANSCRIPT: You
+INFO:stt-orchestrator:[LATENCY] lang=en whisper=1248ms total=1249ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:stt-orchestrator:[VAD] Utterance detected (1.19s)
+INFO:faster_whisper:Processing audio with duration 00:01.340
+INFO:faster_whisper:Detected language 'en' with probability 0.25
+DEBUG:faster_whisper:Processing segment at 00:00.000
+INFO:stt-orchestrator:TRANSCRIPT: Hello!
+INFO:stt-orchestrator:[LATENCY] lang=en whisper=1270ms total=1272ms
+INFO:stt-orchestrator:[VAD] Utterance detected (1.78s)
+INFO:faster_whisper:Processing audio with duration 00:01.940
+INFO:faster_whisper:Detected language 'es' with probability 0.26
+DEBUG:faster_whisper:Processing segment at 00:00.000
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.0 (-1.296031 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.2 (-1.475345 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.4 (-1.555402 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.6 (-1.900517 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 0.8 (-2.459205 < -1.000000)
+DEBUG:faster_whisper:Log probability threshold is not met with temperature 1.0 (-2.906829 < -1.000000)
+DEBUG:faster_whisper:Reset prompt. prompt_reset_on_temperature threshold is met 1.000000 > 0.500000
+INFO:stt-orchestrator:TRANSCRIPT: que siempre me relajaste.
+INFO:stt-orchestrator:[LATENCY] lang=es whisper=2933ms total=2935ms
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:root:ignoring byte stream with topic 'lk.agent.session', no callback attached
+INFO:livekit.agents:shutting down worker
+DEBUG:livekit.agents:shutting down job task
+DEBUG:livekit.agents:job exiting
+DEBUG:livekit.agents:configuring session recording
+DEBUG:livekit.agents:http_session(): closing the httpclient ctx
+DEBUG:livekit.agents:http_session(): creating a new httpclient ctx
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='TTS._metrics_task' coro=<VADStream._metrics_monitor_task() running at E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\vad.py:126> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='Task-24' coro=<VADStream._main_task() running at E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\log.py:17> wait_for=<Future pending cb=[Task.task_wakeup()]> cb=[VADStream.__init__.<locals>.<lambda>() at E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\vad.py:115]>
+ERROR:livekit.plugins.silero:Error in _main_task
+Traceback (most recent call last):
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\aio\channel.py", line 106, in recv
+    await g
+GeneratorExit
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\log.py", line 17, in async_fn_logs
+    return await fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\plugins\silero\vad.py", line 356, in _main_task
+    async for input_frame in self._input_ch:
+    ...<242 lines>...
+                )
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\aio\channel.py", line 176, in __anext__
+    return await self.recv()
+           ^^^^^^^^^^^^^^^^^
+  File "E:\vtutor\v-tutor\stt\.venv\Lib\site-packages\livekit\agents\utils\aio\channel.py", line 110, in recv
+    g.cancel()
+    ~~~~~~~~^^
+  File "D:\Python313\Lib\asyncio\base_events.py", line 833, in call_soon
+    self._check_closed()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "D:\Python313\Lib\asyncio\base_events.py", line 556, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+ERROR:asyncio:Task was destroyed but it is pending!
+task: <Task pending name='Task-23' coro=<handle_track() running at E:\vtutor\v-tutor\stt\agent.py:52> wait_for=<Future pending cb=[Task.task_wakeup()]>>
