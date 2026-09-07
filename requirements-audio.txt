@@ -1,0 +1,11 @@
+# Realtime voice layer. Install AFTER requirements.txt:
+#   v-tutor/Scripts/python -m pip install -r requirements-audio.txt
+#
+# livekit-agents ~=1.5 exposes the Rime plugin with use_websocket=True and
+# the Silero VAD plugin. faster-whisper is the local STT (CTranslate2; no
+# torch, no API key). Python 3.13 note: audioop is gone from the stdlib —
+# stt/agent.py resamples with numpy instead, do not add audioop-lts here.
+
+livekit-agents[silero,rime]~=1.5
+faster-whisper>=1.1
+websockets>=13.0

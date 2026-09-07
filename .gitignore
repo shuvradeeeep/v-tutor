@@ -1,1 +1,38 @@
+# secrets — never commit
 .env
+.env.*
+!.env.example
+
+# virtual environments
+v-tutor/
+.venv/
+venv/
+env/
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# runtime output (evidence/ is committed on purpose — see IMPLEMENTATION_PLAN.md)
+*.log
+agent.log
+transcripts.csv
+sessions.db
+sessions.db-*
+
+# model caches
+.cache/
+models/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
