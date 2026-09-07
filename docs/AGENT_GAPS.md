@@ -1,17 +1,91 @@
 # Agent layer — gap-closing plan
 
-> **Status (2026-09-07, evening):** steps 1, 2, 5, 6, 7, 8 are **done** and
-> tested (135 offline tests). Steps 3 and 4 are **implemented and tested against
-> fake models** — section cap, model-picked outline, two-stage preparation with
-> a background thread, line-count retry, ear rules in every prompt, JSON intent
-> path — and only need real API keys in `.env` to be exercised for real.
-> Verified live: Wikipedia (23 sections → 8/30 beats), DuckDuckGo, gap filler,
-> evidence CSV, SQLite resume in a fresh process.
+## Where things stand (2026-09-07, late night)
+
+**Voice pipeline connected (see `docs/VOICE_PIPELINE.md`):** mic/LiveKit →
+Silero VAD → Whisper → graph → Rime coda → speakers/LiveKit track, in `voice/`
++ `main.py`. Verified end to end with `scripts/voice_dry_run.py` (real VAD,
+real Whisper, real Groq, real Rime). 152 offline tests. Open on this layer:
+Whisper `base` mishears topics (try `small`), ~2.4 s Whisper latency on CPU,
+Rime HTTP 2–3 s per line (websocket streaming + word timestamps not built,
+cursor is word-approximate), no echo cancellation in local mode (headphones),
+Rime `clear` not needed on HTTP (nothing queued server-side).
+
+**Working (verified live with Groq gpt-oss-20b / 120b, DuckDuckGo, Wikipedia):**
+- Voice onboarding → Wikipedia fetch → model picks 8 sections → intro simplified
+  before the first beat, the rest in a background thread → lesson read in beats.
+- Barge-in at any point; stale results fenced (`test_fencing.py`), 145 offline tests.
+- Questions: from the notes (hybrid retrieval) · trivial / general-knowledge
+  straight from the model, no search (~0.5 s) · web only when the model says
+  `LOOKUP` (~2 s).
+- Explain / repeat / slower / faster / navigate / pause / continue / restart /
+  quit / compound "A and B" / "I have a question" → "go ahead".
+- Gap filler (once per turn), evidence CSV, SQLite resume, PDF path on the
+  generated fixture.
+- Tools: `scripts/text_harness.py --live --web duckduckgo` (interactive),
+  `scripts/live_check.py` (non-interactive smoke + timings),
+  `scripts/probe_intent.py` (intent prompt accuracy).
+
+**Still open:**
+- Time to first beat ~9–10 s after "give me a moment" (sequential: Wikipedia
+  2.5 s, section pick 1–5 s, one localize call ~2 s). Not optimised on purpose.
+- Free Groq tier: 8000 tokens/min per model → a second lesson build within a
+  minute gets 429s and silently falls back to unsimplified text.
+- Intent prompt 26/32 on odd utterances; misses are ambiguous phrasings.
+- Step 6: real demo PDF not yet run through `parse_pdf` (needs the file).
+- Hindi entirely on hold: voice, Hinglish rules, Whisper Devanagari check,
+  Hindi Wikipedia fallback untested live.
+- ~~Audio layer not connected~~ → connected 2026-09-07 (`voice/`, `main.py`).
+  Remaining audio gaps are listed at the top of this section.
+
+---
+
+> **Status (2026-09-07, night):** steps 1–5, 7, 8 **done**; steps 3 and 4 now
+> **verified with the real models** (Groq `gpt-oss-20b` fast / `gpt-oss-120b`
+> strong). 145 offline tests. English pipeline works end to end: Wikipedia →
+> model-picked 8 sections → simplified beats → questions from notes / model /
+> web → fenced barge-in. Hindi is **on hold** until the English path is signed off.
 >
-> Still open and **needs you**: LLM keys + model names (step 4), a real PDF to
-> replace the generated fixture (step 6), ten minutes of spoken Hindi through
-> Whisper to check Devanagari vs romanised output (step 1's Hinglish list is a
-> best guess until then).
+> **Real-model pass (step 4) — what was found and fixed:**
+> - Reasoning models think before answering: at default effort a one-word intent
+>   took 2–3 s. `reasoning_effort=low` is sent automatically for known reasoning
+>   models (0.5 s, same quality). `LLM_REASONING_EFFORT` overrides.
+> - Model output carries typographic glyphs (non-breaking hyphens, curly quotes,
+>   em dashes) and stray markdown. `llm.clean_output` strips them on every reply
+>   so TTS and the Windows console never see them.
+> - Intent JSON prompt rewritten against 32 odd utterances the rules miss
+>   (`scripts/probe_intent.py`): 13/32 → 26/32. Parser hardened against string
+>   `"null"`, invalid commands, and sub-fields inconsistent with the intent.
+>   Small rule additions from the probe: bare "what"/"huh" → explain,
+>   "pronounce"/"spell" → explain, "I'm back" when paused → continue,
+>   "I have a question" → *"Sure, go ahead."* and wait.
+> - Line-count retry rate on 3 live articles (Photosynthesis, Heart, Water
+>   cycle): **0 retries in 11 localize calls**. Background sections 8/8 ok.
+> - **New: direct answers.** Out-of-notes questions go to the strong model
+>   first (`direct_answer` node); it replies `LOOKUP` only when it needs current
+>   or very specific information, and only then does web search run. "Capital
+>   of France" / "moons of Mars": 0.4–0.7 s, no search. "Who won yesterday's
+>   match": LOOKUP → web. With the stub model the path is unchanged (straight
+>   to web), so the fencing tests are untouched. Fenced like every other
+>   speaking branch (`fence_direct`).
+> - Wikipedia blocks **httpx by client fingerprint** (403 with the same UA that
+>   gets 200 via `requests`/curl). Fetch switched to `requests`, one round trip
+>   (`generator=search` + `extracts`).
+> - Gap filler fired twice on web questions (armed for the search, re-armed for
+>   the answer). Now at most once per turn.
+> - DuckDuckGo via `ddgs` "auto" took 2.5–8 s; Brave backend ~1.1 s, tried first.
+> - `PREPARE_UPFRONT_SECTIONS` 2 → 1 (one fewer strong-model call before the
+>   first beat).
+>
+> **Known, deliberately not optimised yet (user's call, 2026-09-07):** time to
+> first beat is ~9–10 s after "give me a moment" (Wikipedia 2.5 s + section pick
+> ~1–5 s + one localize call ~2 s, all sequential). Free Groq tier is 8000
+> tokens/minute per model; a second lesson build within a minute gets 429s and
+> falls back to unsimplified text. `scripts/live_check.py` measures all of this.
+>
+> Still open and **needs you**: a real PDF to replace the generated fixture
+> (step 6); ten minutes of spoken Hindi through Whisper (step 1's Hinglish list
+> is a best guess until then) — deferred with the rest of Hindi.
 
 Everything below is what stands between "works in the harness" and "works for a
 real student on demo day", in the order it was done.
@@ -59,18 +133,20 @@ exists (before/after cleanup), save both clips: that is the PS's
   once with "return exactly N lines"; on second failure keep the original for
   that section and log it. Measure how often this happens on 3 articles.
 
-## Step 4 — Real models in [needs 2 API keys]
+## Step 4 — Real models in [needs 2 API keys] · DONE 2026-09-07
 
-- Set `LLM_FAST_*` and `LLM_STRONG_*` in `.env`. No code changes.
+- Set `LLM_FAST_*` and `LLM_STRONG_*` in `.env`. No code changes. ✔ Groq gpt-oss.
 - Run the harness against Photosynthesis and The Heart with the real models.
-- Test the intent JSON prompt on 30 odd utterances the rules miss ("I think
-  plants eat sunlight", "wait what", "is that the same as the thing before").
-  Adjust the prompt, not the rules.
+  ✔ `scripts/live_check.py` (non-interactive) + `scripts/text_harness.py --live`.
+- Test the intent JSON prompt on 30 odd utterances the rules miss. ✔
+  `scripts/probe_intent.py`, 26/32; remaining misses are genuinely ambiguous
+  ("no I meant the other one", "um okay so").
 - Replace the `is_follow_up` regex with the model's judgement only if the regex
-  proves too crude; keep the regex as the fallback.
-- Add the Rime "writing for the ear" system-prompt guidance to the
-  `compose_answer` and `explain` prompts (short sentences, no lists, spell out
-  numbers under 10, no symbols).
+  proves too crude; keep the regex as the fallback. — regex kept, was fine.
+- Add the Rime "writing for the ear" guidance to the `compose_answer` and
+  `explain` prompts. ✔ `TutorNodes.EAR_RULES`, also in `direct_answer`.
+- **Trivial questions skip the web** (added on request): `direct_answer` node,
+  see status block above.
 
 ## Step 5 — Retrieval for real [needs ~120 MB download, no key]
 

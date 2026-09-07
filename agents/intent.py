@@ -213,7 +213,8 @@ def classify_rules(utter: str, *, paused: bool = False) -> Classification | None
         return Classification("session", session_cmd="quit")
     if (n <= 4 and _en(text, "continue", "carry on", "resume", "keep going", "aage badho", "aage badhe",
                        "jaari rakho", "jari rakho", "chalo aage")) \
-            or (paused and _en(text, "go on", "ok", "okay", "yes", "start", "chalo", "shuru karo", "haan")) \
+            or (paused and _en(text, "go on", "ok", "okay", "yes", "start", "chalo", "shuru karo", "haan",
+                               "i'm back", "im back", "i am back", "back now", "let's go", "lets go")) \
             or _hi(text, "जारी रखो", "जारी रखें", "आगे बढ़ो", "आगे बढ़ें", "चलो आगे") \
             or (paused and _hi(text, "चलो", "शुरू करो", "हाँ")):
         return Classification("session", session_cmd="continue")
@@ -274,12 +275,15 @@ def classify_rules(utter: str, *, paused: bool = False) -> Classification | None
         m = re.search(rf"({_LANG_NAMES_RX})\s*(?:में|\bme\b|\bmein\b)", text)
         if m:
             reply_lang = LANG_NAME_TO_CODE[m.group(1)]
-    if _en(text, "what does .+ mean", "what do you mean", "meaning", "means", "define", "definition",
-           "explain", "simpler", "simple words", "simply", "easier", "easy words", "break it down",
-           "break that down", "elaborate", "in other words", "didn't understand", "did not understand",
-           "don't understand", "dont understand", "confused", "what is that", "what's that",
-           "matlab", "samjhao", "samjhaiye", "aasan", "saral", "samajh nahi aaya", "samajh nahin aaya",
-           "samajh nahi aya", "kya hota hai") \
+    if re.fullmatch(r"(?:wait[, ]*)?(?:what|huh|eh|hm+|sorry what|what was that|come again)[?!. ]*", text) \
+            or _en(text, "what does .+ mean", "what do you mean", "meaning", "means", "define", "definition",
+                   "explain", "simpler", "simple words", "simply", "easier", "easy words", "break it down",
+                   "break that down", "elaborate", "in other words", "didn't understand", "did not understand",
+                   "don't understand", "dont understand", "don't get it", "dont get it", "confused",
+                   "what is that", "what's that", "pronounce", "pronunciation", "spell that", "spell it",
+                   "spelling", "for example", "an example", "give me an example",
+                   "matlab", "samjhao", "samjhaiye", "aasan", "saral", "samajh nahi aaya", "samajh nahin aaya",
+                   "samajh nahi aya", "kya hota hai") \
             or _hi(text, "मतलब", "अर्थ", "समझाओ", "समझाइए", "आसान", "सरल", "समझ नहीं आया",
                    "समझ में नहीं आया", "क्या होता है", "क्या है वो", "क्या है ये") \
             or (reply_lang and _en(text, "say", "that", "this", "it", "again", "repeat", "bolo", "kaho", "batao")) \
@@ -309,6 +313,19 @@ def heuristic(utter: str) -> Classification:
     return Classification("question" if _words(utter) >= 3 else "unknown")
 
 
+_ASK_PERMISSION = re.compile(
+    r"^(?:um+|uh+|so|okay|ok|hey|wait)?[, ]*(?:i have a (?:quick |small |one )?question|(?:can|may) i ask (?:you )?"
+    r"(?:something|a question|one thing)|quick question|one question|(?:i've|i have) got a question|"
+    r"ek sawaal hai|ek question hai|mera ek sawal hai|mera ek sawaal hai|एक सवाल है|मेरा एक सवाल है)[?!. ]*$",
+    re.IGNORECASE)
+
+
+def is_ask_permission(utter: str) -> bool:
+    """'I have a question' carries no question yet. The tutor should say
+    'go ahead' and wait, not apologise for not catching it."""
+    return bool(_ASK_PERMISSION.match(_norm(utter)))
+
+
 def parse_llm_json(text: str) -> Classification | None:
     if not text:
         return None
@@ -319,13 +336,48 @@ def parse_llm_json(text: str) -> Classification | None:
         obj = json.loads(m.group(0))
     except json.JSONDecodeError:
         return None
-    intent = str(obj.get("intent", "")).lower()
-    if intent not in VALID_INTENTS:
+    if not isinstance(obj, dict):
+        return None
+
+    def _s(key: str, allowed: set[str] | None = None) -> str | None:
+        v = obj.get(key)
+        if not isinstance(v, str) or v.strip().lower() in ("", "null", "none"):
+            return None
+        v = v.strip().lower()
+        return v if allowed is None or v in allowed else None
+
+    intent = _s("intent", VALID_INTENTS)
+    if intent is None:
+        return None
+    command = _s("command", {"repeat", "slower", "faster", "switch_lesson_lang"})
+    session_cmd = _s("session_cmd", {"pause", "continue", "restart", "quit"})
+    nav = obj.get("nav_target")
+    if isinstance(nav, dict) and nav.get("kind") in ("prev", "next", "index", "topic"):
+        nav = {"kind": nav["kind"], "value": nav.get("value")}
+        if nav["kind"] == "index" and not str(nav.get("value") or "").isdigit():
+            nav = None
+        if nav and nav["kind"] == "topic" and not nav.get("value"):
+            nav = None
+    else:
+        nav = None
+    # Keep the sub-fields consistent with the intent so routers never see a
+    # "question" carrying a session_cmd.
+    if intent != "command":
+        command = None
+    if intent != "session":
+        session_cmd = None
+    if intent != "navigate":
+        nav = None
+    if intent == "command" and not command:
+        return None
+    if intent == "session" and not session_cmd:
+        return None
+    if intent == "navigate" and not nav:
         return None
     return Classification(
-        intent, command=obj.get("command"), command_arg=obj.get("command_arg"),
-        session_cmd=obj.get("session_cmd"), nav_target=obj.get("nav_target"),
-        reply_lang=obj.get("reply_lang"),
+        intent, command=command, command_arg=_s("command_arg") if command == "switch_lesson_lang" else None,
+        session_cmd=session_cmd, nav_target=nav,
+        reply_lang=_s("reply_lang") if intent == "explain" else None,
     )
 
 
@@ -348,18 +400,31 @@ def split_compound(utter: str) -> list[str]:
     return [utter]
 
 
-LLM_SYSTEM = (
-    "Classify a student's spoken utterance to a voice tutor. Reply with JSON only: "
-    '{"intent": one of question|explain|navigate|command|session|backchannel|unknown, '
-    '"command": repeat|slower|faster|switch_lesson_lang|null, "command_arg": "hi"|"en"|null, '
-    '"session_cmd": pause|continue|restart|quit|null, '
-    '"nav_target": {"kind": prev|next|index|topic, "value": ...}|null, "reply_lang": "hi"|"en"|null}. '
-    "explain = about the sentence just heard (define, simplify, translate the reply). "
-    "question = anything needing the notes or the web."
-)
+# Only utterances the regex rules miss reach this prompt, so it is tuned on the
+# odd ones (scripts/probe_intent.py). The rules already own the closed-class
+# phrases; the prompt's job is the grey area between explain / backchannel /
+# question, and knowing that "in hindi" alone is a one-off reply, not a switch.
+# Kept short on purpose: the free Groq tier allows 8000 tokens/minute on the
+# fast model, and this prompt is sent on every rule miss.
+LLM_SYSTEM = """A school student interrupted a voice tutor mid-sentence. Label the utterance. Reply with one JSON object only:
+{"intent": question|explain|navigate|command|session|backchannel|unknown, "command": repeat|slower|faster|switch_lesson_lang|null, "command_arg": hi|en|null, "session_cmd": pause|continue|restart|quit|null, "nav_target": {"kind": prev|next|index|topic, "value": ...}|null, "reply_lang": hi|en|es|fr|de|it|pt|ja|null}
+- backchannel: only "I'm following, carry on" (mm-hmm, okay, um okay so). Confusion or a comment is never backchannel.
+- explain: didn't understand the last sentence; wants it defined, simpler, spelled, pronounced, an example, or translated ("wait what", "huh", "that went over my head", "the ventricle thing"). A bare language name ("in hindi", "hindi mein") = explain once in that language: reply_lang set.
+- command repeat: didn't HEAR it ("sorry I wasn't listening", "I missed that"). switch_lesson_lang only for the WHOLE lesson from now on.
+- question: wants information or a belief checked ("I think plants eat sunlight", "that's wrong isn't it", "so basically the heart is a pump", "no I meant the other one").
+- navigate: prev; next ("I already know this part"); topic with a value ("let's do the history bit" -> topic "history"); index ("section 3").
+- session: pause ("let's take a break"), continue ("I'm back"), restart, quit ("we're done here").
+- unknown: no request in it ("this is boring").
+Torn between backchannel and explain: explain. Torn between explain and question: question if it needs facts beyond the last sentence."""
 
 
 def classify(utter: str, *, paused: bool = False, llm=None) -> Classification:
+    if not utter.strip():
+        # VAD fired but Whisper heard no words (cough, chair scrape). Playback
+        # was already stopped on the fast path; just pick the lesson back up.
+        return Classification("backchannel")
+    if is_ask_permission(utter):
+        return Classification("unknown")      # clarify() answers "go ahead" and waits
     c = classify_rules(utter, paused=paused)
     if c:
         return c

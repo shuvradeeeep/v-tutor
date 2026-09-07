@@ -9,6 +9,8 @@
 # drop it later.
 
 livekit-agents[silero,rime]~=1.5
+livekit-api>=1.0          # scripts/room_token.py mints browser join tokens
 faster-whisper>=1.1
 websockets>=13.0
 audioop-lts>=0.2; python_version >= "3.13"
+sounddevice>=0.5         # `python main.py local`: laptop mic + speakers without LiveKit

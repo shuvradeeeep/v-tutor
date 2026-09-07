@@ -25,6 +25,11 @@ class GapFiller:
     def arm(self, turn_id: int, say: Callable[[], None]) -> None:
         with self._lock:
             self._cancel()
+            if self.fired and self.fired[-1] == turn_id:
+                # Already said "let me check that" on this turn (e.g. web search
+                # then answer generation). Saying it twice sounds like a loop.
+                self._armed_turn = None
+                return
             self._armed_turn = turn_id
             self._timer = threading.Timer(self.deadline, self._fire, args=(turn_id, say))
             self._timer.daemon = True

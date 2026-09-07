@@ -42,7 +42,8 @@ def build_graph(deps: Deps, checkpointer: Any | None = None):
         "choose_language", "choose_source", "parse_pdf", "fetch_material", "ingest_material",
         "teach_step", "await_event", "handle_interrupt", "classify_intent", "clarify",
         "session_handler", "command_handler", "find_section", "explain", "qa_retrieve",
-        "web_search_node", "compose_answer", "discard", "resume_controller", "promote_queued",
+        "direct_answer", "web_search_node", "compose_answer", "discard", "resume_controller",
+        "promote_queued",
     ):
         g.add_node(name, getattr(n, name))
 
@@ -96,14 +97,22 @@ def build_graph(deps: Deps, checkpointer: Any | None = None):
     })
     g.add_conditional_edges("find_section", n.route_nav,
                             {"found": "teach_step", "not_found": "resume_controller"})
+    # Not in the notes: ask the strong model first (trivial / general-knowledge
+    # questions need no search); it says LOOKUP when the web is really needed.
     g.add_conditional_edges("qa_retrieve", n.route_retrieval,
-                            {"grounded": "compose_answer", "needs_web": "web_search_node"})
+                            {"grounded": "compose_answer", "direct": "direct_answer",
+                             "needs_web": "web_search_node"})
+    g.add_conditional_edges("direct_answer", n.route_direct,
+                            {"answered": "fence_direct", "lookup": "web_search_node"})
     g.add_edge("web_search_node", "compose_answer")
 
     # ---- every path that produces speech passes the fence -------------------
     fenced = {"current": "resume_controller", "stale": "discard"}
     for node in ("compose_answer", "command_handler", "explain", "clarify"):
         g.add_conditional_edges(node, n.fence_check, fenced)
+    # direct_answer has two exits, so its fence is a pass-through node.
+    g.add_node("fence_direct", lambda state: {})
+    g.add_conditional_edges("fence_direct", n.fence_check, fenced)
     g.add_edge("discard", "await_event")
 
     # ---- after speaking: drain a queued request, resume the lesson, or wait --

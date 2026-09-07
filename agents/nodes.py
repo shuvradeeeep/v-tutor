@@ -451,7 +451,7 @@ class TutorNodes:
             "beat_spoken": False,
             "answer": None, "reply_lang": None, "intent": None, "command": None,
             "command_arg": None, "session_cmd": None, "nav_target": None,
-            "queued_request": None, "web_aborted": False,
+            "queued_request": None, "web_aborted": False, "answer_mode": None,
             "transcript": [{"role": "learner", "turn": live, "text": state.get("user_utterance") or ""}],
         }
 
@@ -468,6 +468,9 @@ class TutorNodes:
         return upd
 
     def clarify(self, state: dict) -> dict:
+        if intent_mod.is_ask_permission(state.get("user_utterance") or ""):
+            # "I have a question" -- invite it and wait; this is not a miss.
+            return {"answer": self._T(state, "go_ahead"), "clarify_count": 0}
         n = state.get("clarify_count", 0)
         if n >= config.CLARIFY_MAX_ASKS:
             # Second miss in a row: don't loop on "pardon?" -- carry on with the lesson.
@@ -589,7 +592,39 @@ class TutorNodes:
         hits = retriever.search(query, k=config.RETRIEVAL_TOP_K) if retriever else []
         score = hits[0].score if hits else 0.0
         self.d.emit("retrieve", query=query, score=round(score, 3), n=len(hits))
-        return {"retrieved": [h.as_dict() for h in hits], "retrieval_score": score}
+        return {"retrieved": [h.as_dict() for h in hits], "retrieval_score": score, "answer_mode": None}
+
+    LOOKUP_TOKEN = "LOOKUP"
+
+    def direct_answer(self, state: dict) -> dict:
+        """Not in the notes. Most such questions are trivial for the model
+        ("what is the capital of France", "what does chlorophyll mean"), so ask
+        it first; a web search is only worth its latency when the model itself
+        says it needs one. Retrieval hits are passed along as context in case
+        the notes were partially relevant."""
+        self._arm(state, "filler_check")
+        utter = state.get("user_utterance") or ""
+        lang = state.get("reply_lang") or self._lang(state)
+        recent = state.get("recent_exchanges") or []
+        system = (
+            f"You are a friendly tutor speaking aloud to a {state.get('grade') or 'school'} student. "
+            f"The lesson notes do not cover this question. If you can answer it confidently from general "
+            f"knowledge (definitions, everyday facts, school-level science, maths, history, geography), "
+            f"answer in {self._lang_name(lang)} in at most two short sentences. {self.EAR_RULES} "
+            f"If it needs current or very specific information you are not sure about (recent events, "
+            f"prices, schedules, statistics, local details, little-known people), reply with exactly the "
+            f"single word {self.LOOKUP_TOKEN} and nothing else."
+        )
+        history = "\n".join(f"Q: {e['q']}\nA: {e['a']}" for e in recent)
+        user = f"Recent exchanges:\n{history or '(none)'}\n\nQuestion: {utter}"
+        reply = self.d.llm_strong.complete(system, user).strip()
+        if not reply or self.LOOKUP_TOKEN in reply.upper().split()[:3] or len(reply) < 4:
+            self.d.emit("answer_mode", mode="lookup", question=utter)
+            return {"answer_mode": "web"}
+        self.d.emit("answer_mode", mode="direct", question=utter)
+        ex = recent + [{"q": utter, "a": reply}]
+        return {"answer": reply, "answer_mode": "direct",
+                "recent_exchanges": ex[-config.RECENT_EXCHANGES_KEEP:]}
 
     def web_search_node(self, state: dict) -> dict:
         self._arm(state, "filler_check")
@@ -640,7 +675,8 @@ class TutorNodes:
             else:
                 answer = self._T(state, "not_found_answer")
         ex = recent + [{"q": utter, "a": answer}]
-        return {"answer": answer, "recent_exchanges": ex[-config.RECENT_EXCHANGES_KEEP:]}
+        mode = "notes" if state.get("retrieval_score", 0.0) >= config.RETRIEVAL_TAU else "web"
+        return {"answer": answer, "answer_mode": mode, "recent_exchanges": ex[-config.RECENT_EXCHANGES_KEEP:]}
 
     def discard(self, state: dict) -> dict:
         self.d.emit("discard", born=state.get("born_turn_id"), live=self.d.clock.current(),
@@ -707,7 +743,15 @@ class TutorNodes:
         return "not_found" if state.get("answer") else "found"
 
     def route_retrieval(self, state: dict) -> str:
-        return "grounded" if state.get("retrieval_score", 0.0) >= config.RETRIEVAL_TAU else "needs_web"
+        if state.get("retrieval_score", 0.0) >= config.RETRIEVAL_TAU:
+            return "grounded"
+        # Without a real model there is nothing to ask; go straight to the web.
+        if getattr(self.d.llm_strong, "provider", "stub") == "stub":
+            return "needs_web"
+        return "direct"
+
+    def route_direct(self, state: dict) -> str:
+        return "answered" if state.get("answer") else "lookup"
 
     def fence_check(self, state: dict) -> str:
         return "current" if state.get("born_turn_id", 0) == self.d.clock.current() else "stale"

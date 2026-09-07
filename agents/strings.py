@@ -33,6 +33,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "restart": "Okay, starting from the beginning.",
         "goodbye": "Alright, that's it for today. Good work. Bye!",
         "clarify": "Sorry, I didn't catch that. Could you say it again?",
+        "go_ahead": "Sure, go ahead.",
         "lang_switched": "Okay, I'll teach in English from here.",
         "lesson_lang_unsupported": "I can explain things in that language, but I can only teach the whole lesson in {langs}.",
         "nav_not_found": "I couldn't find a part about that. Let's carry on.",

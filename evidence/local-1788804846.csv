@@ -1,0 +1,3 @@
+timestamp,elapsed_ms,session,event,payload
+2026-09-07T23:44:13,6583,local-1788804846,tts,"{""turn"": 0, ""words"": 17, ""synth_ms"": 1, ""audio_s"": 5.45, ""cached"": true}"
+2026-09-07T23:44:13,6583,local-1788804846,speak,"{""turn"": 0, ""kind"": ""system"", ""lang"": ""en"", ""text"": ""Hi! Which language shall we study in? You can say it, or tap it on the screen.""}"

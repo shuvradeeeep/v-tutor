@@ -94,6 +94,11 @@ LLM_FAST_PROVIDER = _env("LLM_FAST_PROVIDER", "stub")
 LLM_FAST_MODEL = _env("LLM_FAST_MODEL")
 LLM_STRONG_PROVIDER = _env("LLM_STRONG_PROVIDER", "stub")
 LLM_STRONG_MODEL = _env("LLM_STRONG_MODEL")
+# Reasoning models (gpt-oss on Groq) get "low" automatically; set to override,
+# or "none" to send nothing. Reasoning tokens count against LLM_MAX_TOKENS.
+LLM_REASONING_EFFORT = _env("LLM_REASONING_EFFORT")
+LLM_MAX_TOKENS = int(_env("LLM_MAX_TOKENS", "1200"))
+LLM_TIMEOUT_S = float(_env("LLM_TIMEOUT_S", "20"))
 WEB_SEARCH_PROVIDER = _env("WEB_SEARCH_PROVIDER", "stub")
 
 GAP_FILLER_DEADLINE_MS = 700
@@ -103,7 +108,10 @@ CLARIFY_MAX_ASKS = 1
 # Lesson size for a class-level session: Wikipedia articles run to 80+ beats.
 MAX_SECTIONS = int(_env("MAX_SECTIONS", "8"))
 MAX_BEATS = int(_env("MAX_BEATS", "30"))
-PREPARE_UPFRONT_SECTIONS = 2          # localised before speaking; the rest in the background
+# Sections localised before the first beat is spoken; the rest are prepared in
+# the background. Each one costs a strong-model call (~1.5-2 s) before the tutor
+# can start, so 1 keeps time-to-first-beat lowest.
+PREPARE_UPFRONT_SECTIONS = int(_env("PREPARE_UPFRONT_SECTIONS", "1"))
 LOCALIZE_RETRIES = 1                  # re-ask once if the model returns the wrong line count
 
 CHECKPOINT_DB = _env("CHECKPOINT_DB", "sessions.db")

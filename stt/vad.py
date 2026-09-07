@@ -7,7 +7,7 @@ import asyncio
 import collections
 import logging
 import time
-from typing import AsyncGenerator
+from typing import AsyncGenerator, AsyncIterator, Callable, Optional
 from dataclasses import dataclass
 
 from livekit import agents, rtc
@@ -47,11 +47,38 @@ class AudioSegmenter:
         self.max_utterance_duration = max_utterance_duration
         self.preroll_frames = preroll_frames
 
-    async def process_track(self, track: rtc.Track) -> AsyncGenerator[SpeechUtterance, None]:
+    async def process_track(
+        self,
+        track: rtc.Track,
+        on_speech_start: Optional[Callable[[], None]] = None,
+    ) -> AsyncGenerator[SpeechUtterance, None]:
         """
         Listens to a LiveKit track, processes frames through Silero VAD,
         and yields completed SpeechUtterance instances whenever the user
         finishes talking (or the max-duration safety cap is hit).
+
+        on_speech_start: optional callback fired the instant START_OF_SPEECH is
+        detected, before any transcript exists. The tutor uses this as the
+        barge-in fast path (stop playback now, classify the words later).
+        """
+        audio_stream = rtc.AudioStream(track)
+
+        async def frames() -> AsyncIterator[rtc.AudioFrame]:
+            async for audio_event in audio_stream:
+                yield audio_event.frame
+
+        async for utt in self.process_frames(frames(), on_speech_start=on_speech_start, label=track.sid):
+            yield utt
+
+    async def process_frames(
+        self,
+        frames: AsyncIterator[rtc.AudioFrame],
+        on_speech_start: Optional[Callable[[], None]] = None,
+        label: str = "frames",
+    ) -> AsyncGenerator[SpeechUtterance, None]:
+        """
+        Same as process_track, but over any async iterator of AudioFrames --
+        a LiveKit track, a local microphone, or a test fixture.
         """
         vad_stream = self.vad.stream()
         preroll = collections.deque(maxlen=self.preroll_frames)  # ~0.3s rolling buffer
@@ -59,14 +86,11 @@ class AudioSegmenter:
         speech_start_time: float | None = None
         is_speaking = False
 
-        audio_stream = rtc.AudioStream(track)
-
         # Background task to push audio frames into VAD and buffers
         async def push_audio():
             nonlocal is_speaking
             try:
-                async for audio_event in audio_stream:
-                    frame = audio_event.frame
+                async for frame in frames:
                     vad_stream.push_frame(frame)
                     preroll.append(frame)
                     if is_speaking:
@@ -75,8 +99,10 @@ class AudioSegmenter:
                 raise
             except Exception:
                 # Without this, a crash here kills the feeder silently and
-                # process_track just stops yielding with no indication why.
-                logger.exception("push_audio failed for track %s", track.sid)
+                # process_frames just stops yielding with no indication why.
+                logger.exception("push_audio failed for %s", label)
+            finally:
+                vad_stream.end_input()
 
         push_task = asyncio.create_task(push_audio())
 
@@ -88,6 +114,11 @@ class AudioSegmenter:
                     speech_start_time = now
                     is_speaking = True
                     utterance_frames = list(preroll)
+                    if on_speech_start is not None:
+                        try:
+                            on_speech_start()
+                        except Exception:
+                            logger.exception("on_speech_start callback failed")
 
                 elif event.type == agents.vad.VADEventType.END_OF_SPEECH:
                     is_speaking = False
@@ -126,8 +157,8 @@ class AudioSegmenter:
                 # teardown/GeneratorExit raises a RuntimeError), so trailing
                 # speech on track disconnect is logged rather than emitted.
                 logger.warning(
-                    "Dropping %d buffered frame(s) on track %s teardown (utterance in progress)",
-                    len(utterance_frames), track.sid,
+                    "Dropping %d buffered frame(s) on %s teardown (utterance in progress)",
+                    len(utterance_frames), label,
                 )
             push_task.cancel()
             try:

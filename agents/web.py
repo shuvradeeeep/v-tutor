@@ -14,17 +14,26 @@ def stub_search(query: str) -> list[dict]:
     return []
 
 
+# ddgs fans out to several engines. Measured 2026-09-07 from here: brave ~1.1 s,
+# auto ~2.6 s, bing ~6 s. Try the fast one first, then let the library choose.
+DDGS_BACKENDS = ("brave", "auto")
+
+
 def duckduckgo_search(query: str, max_results: int = 3) -> list[dict]:
     try:
         from ddgs import DDGS  # renamed from duckduckgo_search in 2025
     except ImportError:  # pragma: no cover
         from duckduckgo_search import DDGS  # type: ignore
-    try:
-        with DDGS() as d:
-            rows = d.text(query, max_results=max_results) or []
-    except Exception as exc:  # noqa: BLE001 -- never let a search failure crash the voice loop
-        logger.warning("duckduckgo failed for %r: %s", query, exc)
-        return []
+    rows: list[dict] = []
+    for backend in DDGS_BACKENDS:
+        try:
+            with DDGS(timeout=8) as d:
+                rows = d.text(query, max_results=max_results, backend=backend) or []
+        except Exception as exc:  # noqa: BLE001 -- never let a search failure crash the voice loop
+            logger.warning("web search (%s) failed for %r: %s", backend, query, exc)
+            rows = []
+        if rows:
+            break
     out = []
     for r in rows:
         snippet = (r.get("body") or r.get("snippet") or "").strip()

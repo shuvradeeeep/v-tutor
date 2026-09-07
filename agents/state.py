@@ -97,6 +97,7 @@ class TutorState(TypedDict, total=False):
     recent_exchanges: list[dict]     # last N {"q":..., "a":...}
     retrieved: list[dict]            # [{"text", "section_id", "section_title", "score", "source"}]
     retrieval_score: float
+    answer_mode: str | None          # notes | direct | web -- where the answer came from
     web_aborted: bool                # web search bailed because the turn went stale
     answer: str | None
     reply_lang: str | None           # one-off language for this reply only
@@ -135,7 +136,7 @@ def initial_state(session_id: str, pdf_paths: list[str] | None = None,
         event=None, user_utterance=None, detected_lang=None, intent=None,
         command=None, command_arg=None, session_cmd=None, nav_target=None,
         queued_request=None,
-        recent_exchanges=[], retrieved=[], retrieval_score=0.0, web_aborted=False,
+        recent_exchanges=[], retrieved=[], retrieval_score=0.0, answer_mode=None, web_aborted=False,
         answer=None,
         reply_lang=None, clarify_count=0, stale_drops=0,
         paused=False,

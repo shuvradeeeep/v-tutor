@@ -195,8 +195,10 @@ def sections_from_plaintext(raw: str, title: str = "Introduction",
 # Topic mode: Wikipedia
 # --------------------------------------------------------------------------
 
-# Wikimedia returns 403 unless the User-Agent carries a contact URL.
-_UA = "v-tutor/0.1 (https://github.com/shuvradeeeep/v-tutor; hackathon voice tutor) python-httpx"
+# Wikimedia returns 403 unless the User-Agent carries a contact URL. It ALSO
+# blocks httpx by client fingerprint (same UA gets 200 via requests/curl and 403
+# via httpx, verified 2026-09-07), so this module uses `requests` for Wikipedia.
+_UA = "v-tutor/0.1 (https://github.com/shuvradeeeep/v-tutor; hackathon voice tutor)"
 
 
 class DisambiguationError(Exception):
@@ -217,7 +219,7 @@ def disambiguation_options(extract: str, limit: int = 3) -> list[str]:
             continue
         if line.lower().endswith("may refer to:") or line.lower().endswith("may also refer to:"):
             continue
-        opts.append(re.split(r"[,;:]| – | - ", line, 1)[0].strip())   # keep "(planet)" qualifiers
+        opts.append(re.split(r"[,;:]| – | - ", line, maxsplit=1)[0].strip())   # keep "(planet)" qualifiers
         if len(opts) >= limit:
             break
     return opts
@@ -227,40 +229,32 @@ def fetch_wikipedia(topic: str, lang: str, timeout: float = 10.0) -> tuple[list[
     """Return (sections, detected_lang, url) from the `lang` edition, or None.
     Raises DisambiguationError for pages that list several meanings.
 
-    MediaWiki API: `list=search` resolves the title, `prop=extracts&explaintext`
-    gives clean section text with "== Heading ==" markers. No API key.
+    MediaWiki API, one round trip: `generator=search` resolves the title and
+    `prop=extracts&explaintext` on the same call gives clean section text with
+    "== Heading ==" markers. No API key.
     """
-    import httpx
+    import requests
 
     api = f"https://{lang}.wikipedia.org/w/api.php"
-    headers = {"User-Agent": _UA}
+    headers = {"User-Agent": _UA, "Accept": "application/json"}
     try:
-        with httpx.Client(timeout=timeout, headers=headers) as c:
-            r = c.get(api, params={
-                "action": "query", "list": "search", "srsearch": topic,
-                "srlimit": 1, "format": "json",
-            })
-            r.raise_for_status()
-            hits = r.json().get("query", {}).get("search", [])
-            if not hits:
-                return None
-            title = hits[0]["title"]
-            r = c.get(api, params={
-                "action": "query", "prop": "extracts|pageprops", "explaintext": 1,
-                "exsectionformat": "wiki", "redirects": 1, "titles": title,
-                "format": "json",
-            })
-            r.raise_for_status()
-            pages = r.json().get("query", {}).get("pages", {})
-            page = next(iter(pages.values()), {})
-            extract = (page.get("extract") or "").strip()
-            is_disambig = "disambiguation" in (page.get("pageprops") or {}) \
-                or title.lower().endswith("(disambiguation)")
+        r = requests.get(api, params={
+            "action": "query", "generator": "search", "gsrsearch": topic, "gsrlimit": 1,
+            "prop": "extracts|pageprops", "explaintext": 1, "exsectionformat": "wiki",
+            "redirects": 1, "format": "json",
+        }, headers=headers, timeout=timeout)
+        r.raise_for_status()
+        pages = r.json().get("query", {}).get("pages", {})
+        page = next(iter(pages.values()), {}) if pages else {}
     except Exception as exc:  # noqa: BLE001
         logger.warning("wikipedia fetch failed for %r/%s: %s", topic, lang, exc)
         return None
 
-    if not extract:
+    title = page.get("title") or ""
+    extract = (page.get("extract") or "").strip()
+    is_disambig = "disambiguation" in (page.get("pageprops") or {}) \
+        or title.lower().endswith("(disambiguation)")
+    if not title or not extract:
         return None
     if is_disambig:
         raise DisambiguationError(title, disambiguation_options(extract))
