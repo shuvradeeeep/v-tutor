@@ -56,6 +56,10 @@ SHOW_EVENTS = {"vad_start", "transcript", "intent", "retrieve", "answer_mode", "
 
 
 def _console_event(name: str, p: dict) -> None:
+    if name == "transcript":
+        # The learner's own words, printed like the tutor's so a session reads
+        # as a conversation in the terminal, not as a stream of events.
+        print(f"\n  [learner | {p.get('lang')} | whisper {p.get('whisper_ms')} ms]\n  {p.get('text') or '(nothing heard)'}\n")
     if name in SHOW_EVENTS:
         print(f"     . {name} {p}")
 
@@ -76,6 +80,7 @@ def _evidence_path(session: str, enabled: bool) -> str | None:
 # --------------------------------------------------------------------------
 
 async def run_local(args: argparse.Namespace) -> None:
+    from stt import settings as stt_settings
     from voice.audio_io import SpeechInput, mic_frames
     from voice.bridge import make_bridge
     from voice.player import LocalPlayer
@@ -91,7 +96,9 @@ async def run_local(args: argparse.Namespace) -> None:
     )
     print(f"\nsession={session}  tts={bridge.speaker.provider}/{config.RIME_MODEL_ID}  "
           f"llm={bridge.runner.deps.llm_fast.provider}/{bridge.runner.deps.llm_strong.model}  "
-          f"whisper={os.getenv('WHISPER_MODEL_SIZE', 'base')}  stress={args.stress_ms}ms")
+          f"whisper={stt_settings.WHISPER_MODEL_SIZE} (beam {stt_settings.WHISPER_BEAM_SIZE}, "
+          f"{stt_settings.WHISPER_CPU_THREADS} threads)  stress={args.stress_ms}ms")
+    print(f"transcripts: {stt_settings.TRANSCRIPTS_CSV}")
     print("Wear headphones (the mic must not hear the tutor). Speak when the tutor asks. Ctrl+C to quit.\n")
 
     speech = SpeechInput()
@@ -118,10 +125,12 @@ async def run_local(args: argparse.Namespace) -> None:
             pass
         bridge.wait_idle(5)
         bridge.close()
+        speech.close()
         ev = getattr(bridge, "evidence", None)
         if ev:
             ev.close()
             print(f"\nevidence: {ev.path} ({ev.rows} rows)")
+        print(f"transcripts: {stt_settings.TRANSCRIPTS_CSV}")
         print(f"turns: {len(bridge.turns)}  stale drops: {bridge.runner.state.get('stale_drops')}  "
               f"rime calls: {bridge.speaker.synth.calls} (cache hits {bridge.speaker.synth.cache_hits})")
         print("session over.")
@@ -190,7 +199,7 @@ def run_livekit() -> None:
         def on_track(track: rtc.Track, pub: rtc.TrackPublication, participant: rtc.RemoteParticipant) -> None:
             if track.kind == rtc.TrackKind.KIND_AUDIO:
                 logger.info("listening to %s", participant.identity)
-                t = asyncio.create_task(sp.run_track(track, bridge))
+                t = asyncio.create_task(sp.run_track(track, bridge, label=participant.identity))
                 tasks.add(t)
                 t.add_done_callback(tasks.discard)
 
@@ -205,6 +214,7 @@ def run_livekit() -> None:
                 t.cancel()
             bridge.wait_idle(5)
             bridge.close()
+            sp.close()
             ev = getattr(bridge, "evidence", None)
             if ev:
                 ev.close()

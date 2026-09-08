@@ -4,19 +4,25 @@ Main entrypoint: Connects LiveKit Room -> VAD Segmenter -> Transcriber.
 """
 
 import asyncio
-import csv
 import logging
-import os
+import sys
 import time
-from datetime import datetime
+from pathlib import Path
 
 from dotenv import load_dotenv
 from livekit import agents, rtc
 
-from vad import AudioSegmenter
-from transcriber import WhisperTranscriber
+# Runnable as `python stt/agent.py dev` or from inside stt/; either way the
+# repo root goes on the path so this and voice/audio_io.py load the same
+# modules (and therefore the same settings) rather than two copies.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-load_dotenv()
+load_dotenv()  # before settings: it reads the environment at import time
+
+from stt import settings  # noqa: E402
+from stt.transcriber import WhisperTranscriber  # noqa: E402
+from stt.transcripts import TranscriptLog, row as transcript_row  # noqa: E402
+from stt.vad import AudioSegmenter  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,48 +33,39 @@ logging.basicConfig(
 )
 logger = logging.getLogger("stt-orchestrator")
 
-# ---- Config (env-overridable so tuning doesn't require code edits) ----
-MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "base")
-DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
-COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
-BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "5"))
-CSV_FILE = os.getenv("TRANSCRIPTS_CSV", "transcripts.csv")
-MIN_SPEECH_DURATION = float(os.getenv("VAD_MIN_SPEECH_DURATION", "0.1"))
-MIN_SILENCE_DURATION = float(os.getenv("VAD_MIN_SILENCE_DURATION", "0.5"))
-MAX_UTTERANCE_DURATION = float(os.getenv("VAD_MAX_UTTERANCE_DURATION", "30.0"))
+# ---- Config ----
+# All knobs (and their env overrides) live in stt/settings.py, shared with
+# voice/audio_io.py so the two can't drift apart.
+CSV_FILE = settings.TRANSCRIPTS_CSV
 
 # Model load is expensive (disk + memory) -> do it once at process startup, not per-job.
 transcriber = WhisperTranscriber(
-    model_size=MODEL_SIZE,
-    device=DEVICE,
-    compute_type=COMPUTE_TYPE,
-    beam_size=BEAM_SIZE,
+    model_size=settings.WHISPER_MODEL_SIZE,
+    device=settings.WHISPER_DEVICE,
+    compute_type=settings.WHISPER_COMPUTE_TYPE,
+    beam_size=settings.WHISPER_BEAM_SIZE,
+    cpu_threads=settings.WHISPER_CPU_THREADS,
+    single_pass=settings.WHISPER_SINGLE_PASS,
 )
+if settings.WHISPER_WARMUP:
+    # Pay the lazy-init cost now instead of on the first real utterance.
+    transcriber.warmup()
 segmenter = AudioSegmenter(
-    min_speech_duration=MIN_SPEECH_DURATION,
-    min_silence_duration=MIN_SILENCE_DURATION,
-    max_utterance_duration=MAX_UTTERANCE_DURATION,
+    min_speech_duration=settings.VAD_MIN_SPEECH_DURATION,
+    min_silence_duration=settings.VAD_MIN_SILENCE_DURATION,
+    max_utterance_duration=settings.VAD_MAX_UTTERANCE_DURATION,
 )
 
 # ---- CSV writer ----
-# A single background task owns the file handle and drains a queue. This keeps
-# disk I/O (open/write/flush) off the event loop and serializes writes across
-# concurrent tracks without needing an explicit lock.
+# A single background task owns the log and drains a queue. This keeps disk I/O
+# (write/flush) off the event loop and serializes writes across concurrent
+# tracks. The log itself is stt/transcripts.py, shared with the tutor, so both
+# entrypoints append the same schema to the same file.
 csv_queue: asyncio.Queue = asyncio.Queue()
+transcript_log = TranscriptLog(CSV_FILE)
 
 
 async def csv_writer_task():
-    file_exists = os.path.exists(CSV_FILE)
-    csv_handle = open(CSV_FILE, mode="a", newline="", encoding="utf-8")
-    writer = csv.writer(csv_handle)
-
-    if not file_exists:
-        writer.writerow([
-            "timestamp", "participant", "language", "language_confidence",
-            "vad_duration_sec", "whisper_ms", "total_latency_ms", "transcript"
-        ])
-        csv_handle.flush()
-
     try:
         while True:
             row = await csv_queue.get()
@@ -76,14 +73,11 @@ async def csv_writer_task():
                 csv_queue.task_done()
                 break
             try:
-                writer.writerow(row)
-                csv_handle.flush()
-            except Exception:
-                logger.exception("Failed to write transcript row")
+                transcript_log.append_row(row)
             finally:
                 csv_queue.task_done()
     finally:
-        csv_handle.close()
+        transcript_log.close()
 
 
 # ---- Background task bookkeeping ----
@@ -134,16 +128,11 @@ async def handle_track(track: rtc.Track, participant_identity: str):
             )
             # Non-blocking: hands the row to the writer task instead of doing
             # file I/O inline on the event loop.
-            csv_queue.put_nowait([
-                datetime.now().isoformat(timespec="seconds"),
-                participant_identity,
-                lang,
-                f"{prob:.2f}",
-                f"{utterance.vad_duration_sec:.2f}",
-                f"{whisper_ms:.0f}",
-                f"{total_latency_ms:.0f}",
-                text,
-            ])
+            if settings.LOG_TRANSCRIPTS:
+                csv_queue.put_nowait(transcript_row(
+                    participant_identity, text, lang, prob,
+                    utterance.vad_duration_sec, whisper_ms, total_latency_ms,
+                ))
         else:
             logger.info("[Whisper] No speech detected in segment from %s.", participant_identity)
 

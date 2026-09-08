@@ -61,6 +61,20 @@ class RimeHTTP:
         if path and path.exists():
             self.cache_hits += 1
             return path.read_bytes()
+        pcm = self._render(text, speaker=speaker, lang=lang, speed_alpha=speed_alpha)
+        if pcm is None:
+            return None
+        if len(pcm) % 2:
+            pcm = pcm[:-1]
+        if path:
+            try:
+                path.write_bytes(pcm)
+            except OSError:
+                pass
+        return pcm
+
+    def _render(self, text: str, *, speaker: str, lang: str, speed_alpha: float) -> bytes | None:
+        """The actual synthesis call. Subclasses swap this; caching is shared."""
         if not self.api_key:
             return None
         import requests
@@ -78,15 +92,7 @@ class RimeHTTP:
             return None
         self.calls += 1
         self.last_ms = (time.perf_counter() - t) * 1000
-        pcm = r.content
-        if len(pcm) % 2:
-            pcm = pcm[:-1]
-        if path:
-            try:
-                path.write_bytes(pcm)
-            except OSError:
-                pass
-        return pcm
+        return r.content
 
 
 class SilentSynth(RimeHTTP):
@@ -100,6 +106,85 @@ class SilentSynth(RimeHTTP):
         return None
 
 
+class SapiSynth(RimeHTTP):
+    """
+    The Windows speech synthesiser, rendered to the same 16 kHz mono PCM Rime
+    returns. No key, no network -- this is what makes the full
+    STT -> agent -> TTS loop checkable offline.
+
+    It is a fallback, not the product: the voice is robotic, Hindi is only
+    available if a Hindi voice is installed on the machine, and each uncached
+    line costs a PowerShell process (~0.5-1 s). Cached lines are free, and the
+    cache is shared with Rime's (different key, same directory).
+    """
+
+    provider = "sapi"
+
+    def __init__(self, sample_rate: int = 16000, cache_dir: str | Path | None = ".cache/tts") -> None:
+        super().__init__(api_key="", cache_dir=cache_dir, sample_rate=sample_rate)
+        self.model_id = "sapi"          # keeps its cache keys distinct from Rime's
+
+    def _render(self, text: str, *, speaker: str, lang: str, speed_alpha: float) -> bytes | None:  # noqa: ARG002
+        import subprocess
+        import tempfile
+        import wave
+
+        # SAPI rate is -10..10 around normal. config.SPEED_ALPHA_* runs 0.6-1.5.
+        rate = max(-10, min(10, round((speed_alpha - 1.0) * 10)))
+        tmp = Path(tempfile.mkdtemp(prefix="sapi_"))
+        txt_path, wav_path = tmp / "line.txt", tmp / "line.wav"
+        # The text goes through a file: no quoting or escaping rules to get
+        # wrong, whatever the tutor decided to say.
+        txt_path.write_text(text, encoding="utf-8")
+        script = (
+            "Add-Type -AssemblyName System.Speech; "
+            "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+            f"$s.Rate = {rate}; "
+            "$f = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo("
+            f"{self.sample_rate},[System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen,"
+            "[System.Speech.AudioFormat.AudioChannel]::Mono); "
+            f'$s.SetOutputToWaveFile("{wav_path}",$f); '
+            f'$s.Speak((Get-Content -Raw -Encoding UTF8 "{txt_path}")); $s.Dispose()'
+        )
+        t = time.perf_counter()
+        try:
+            subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                           check=True, capture_output=True, timeout=self.timeout)
+            with wave.open(str(wav_path), "rb") as w:
+                pcm = w.readframes(w.getnframes())
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("sapi synth failed (%s): %s", text[:40], exc)
+            return None
+        finally:
+            for p in (txt_path, wav_path):
+                p.unlink(missing_ok=True)
+            tmp.rmdir()
+        self.calls += 1
+        self.last_ms = (time.perf_counter() - t) * 1000
+        return pcm
+
+
+def default_synth() -> RimeHTTP:
+    """
+    Pick a speech provider. `TTS_PROVIDER` (config.py) forces one:
+
+        rime    the product path; needs RIME_API_KEY
+        sapi    Windows TTS, offline, robotic -- for checking the loop
+        silent  no audio at all, timing only
+        auto    Rime if RIME_API_KEY is set, else sapi   (default)
+    """
+    choice = (config.TTS_PROVIDER or "auto").lower()
+    if choice == "silent":
+        return SilentSynth()
+    if choice == "sapi":
+        return SapiSynth()
+    rime = RimeHTTP()
+    if choice == "rime" or rime.api_key:
+        return rime
+    logger.info("no RIME_API_KEY: falling back to Windows TTS (set TTS_PROVIDER=silent to disable audio)")
+    return SapiSynth()
+
+
 class RimeSpeaker:
     """agents.session.Speaker backed by Rime + a Player."""
 
@@ -109,11 +194,12 @@ class RimeSpeaker:
                  silent_fallback: bool = True) -> None:
         self.player = player
         self.clock = clock
-        self.synth = synth if synth is not None else RimeHTTP()
+        self.synth = synth if synth is not None else default_synth()
         self.on_text = on_text
         self.on_event = on_event
         self.silent_fallback = silent_fallback
-        self.provider = "rime" if self.synth.api_key else "text-only"
+        self.provider = getattr(self.synth, "provider",
+                                "rime" if self.synth.api_key else "text-only")
         self.stops = 0
         self.last_cursor: HeardCursor | None = None
         self._lock = threading.Lock()

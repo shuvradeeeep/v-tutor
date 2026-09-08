@@ -49,17 +49,30 @@ through the real VAD + Whisper as if they came from a mic, and the tutor's
 lines come back through the real graph and Rime.
 
 ```powershell
-..\venv\Scripts\python scripts\voice_dry_run.py
-..\venv\Scripts\python scripts\voice_dry_run.py --speakers        # hear the tutor
-..\venv\Scripts\python scripts\voice_dry_run.py --say "English" --say "photosynthesis for class six" `
+.\.venv\Scripts\python scripts\voice_dry_run.py
+.\.venv\Scripts\python scripts\voice_dry_run.py --speakers        # hear the tutor
+.\.venv\Scripts\python scripts\voice_dry_run.py --sapi            # no RIME_API_KEY: Windows TTS renders the learner
+.\.venv\Scripts\python scripts\voice_dry_run.py --say "English" --say "photosynthesis for class six" `
     --say "what does chlorophyll mean" --say "slower" --say "stop for today"
 ```
+
+`--sapi` (also chosen automatically when `RIME_API_KEY` is unset) renders the
+learner's lines with the Windows speech synthesiser instead of Rime, so the
+whole chain — VAD, Whisper, graph, tutor text — is checkable with no keys and
+no network beyond Wikipedia. Without `LLM_*` keys the graph still runs; it takes
+its deterministic fallback paths, so the tutor reads the article rather than a
+model-simplified version of it.
 
 You see, in order: `vad_start` with the heard cursor (stop latency in ms),
 `transcript` with Whisper latency, the graph's `intent` / `retrieve` /
 `answer_mode` events, every tutor line, `tts_drop_stale` when a barge-in lands
 during synthesis, and `playback_confirmed` when a beat finished. A summary
 table and the evidence CSV path print at the end.
+
+Every utterance is also appended to `stt/transcripts.csv` (`stt/transcripts.py`,
+same columns whichever entrypoint is running), so a tutor session leaves the
+same transcript trail as the standalone STT worker. Follow it live with
+`Get-Content -Wait stt\transcripts.csv`. Set `LOG_TRANSCRIPTS=0` to turn it off.
 
 ## 2. Local — laptop mic and speakers, no LiveKit
 
@@ -140,11 +153,19 @@ UI that wants captions.
 | Stage | Measured | Knob |
 |---|---|---|
 | VAD start → playback stopped | 0.15–0.27 ms (in-process flush) | — |
-| Whisper `base`, int8, beam 5 | 2.3–2.5 s per utterance | `WHISPER_BEAM_SIZE=1` (≈2× faster), `WHISPER_MODEL_SIZE=tiny` |
-| VAD start → transcript delivered | 4–6.5 s (includes the utterance itself + 0.5 s end-of-speech silence) | `VAD_MIN_SILENCE_DURATION` |
+| Whisper `base`, int8, beam 5, two encoder passes (before 2026-09-08) | 2.3–2.5 s per utterance | — |
+| Whisper `base`, int8, beam 1, one encoder pass, 8 threads (now) | ~2× faster: 0.43–0.56 s on 1.3–8.6 s clips on an idle laptop, ~1.0–1.3 s while the tutor is under load | `WHISPER_MODEL_SIZE=tiny`, `WHISPER_SINGLE_PASS=0` to revert the fast path |
+| VAD start → transcript delivered | 4–6.5 s before, ~1.5 s faster now (still includes the utterance itself + 0.5 s end-of-speech silence) | `VAD_MIN_SILENCE_DURATION` |
 | Rime coda HTTP, one line | 2–3 s (cached: 0) | model `arcana`/`mistv2` are faster; websocket streaming not built |
 | Groq answer (direct) | 0.4–0.7 s | — |
 | Lesson prep after "give me a moment" | ~12 s (Wikipedia + section pick + simplify) | `PREPARE_UPFRONT_SECTIONS`, see AGENT_GAPS |
+
+Every STT knob above lives in `stt/settings.py` (env-overridable, same names),
+which is what both `voice/audio_io.py` and the standalone `stt/agent.py` read --
+so tuning one does not leave the other behind. Re-measure with
+`..\venv\Scripts\python scripts\bench_stt.py`, which A/Bs the old and current
+settings in separate processes and checks the fast path against plain
+faster-whisper.
 
 Known behaviour to expect:
 

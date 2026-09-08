@@ -3,14 +3,12 @@
 #
 # livekit-agents ~=1.5 exposes the Rime plugin with use_websocket=True and
 # the Silero VAD plugin. faster-whisper is the local STT (CTranslate2; no
-# torch, no API key). Python 3.13 note: audioop was removed from the stdlib;
-# stt/transcriber.py currently imports it, so audioop-lts is required here. A
-# numpy-only resampler (no extra dependency) is in git history if we want to
-# drop it later.
+# torch, no API key). Python 3.13 note: audioop was removed from the stdlib,
+# and nothing needs it any more -- stt/transcriber.py now converts audio via
+# stt/audio.py (numpy + LiveKit's own resampler).
 
 livekit-agents[silero,rime]~=1.5
 livekit-api>=1.0          # scripts/room_token.py mints browser join tokens
 faster-whisper>=1.1
 websockets>=13.0
-audioop-lts>=0.2; python_version >= "3.13"
 sounddevice>=0.5         # `python main.py local`: laptop mic + speakers without LiveKit

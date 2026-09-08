@@ -29,6 +29,11 @@ RIME_CATALOG_URL = "https://users.rime.ai/data/voices/all-v2.json"
 
 # Explicit on purpose: omitting modelId makes Rime default to mistv3.
 RIME_MODEL_ID = _env("RIME_MODEL_ID", "coda")
+
+# Which speech provider voice/tts.py uses: rime | sapi | silent | auto.
+# "auto" is Rime when RIME_API_KEY is set, otherwise the Windows synthesiser,
+# so the full STT -> agent -> TTS loop is audible without a key.
+TTS_PROVIDER = _env("TTS_PROVIDER", "auto")
 RIME_AUDIO_FORMAT = "pcm"                                    # no MP3 frame lag on flush
 RIME_SAMPLE_RATE = int(_env("RIME_SAMPLE_RATE", "16000"))    # verified by preflight
 RIME_TRANSPORT = "websocket -> LiveKit WebRTC audio track"

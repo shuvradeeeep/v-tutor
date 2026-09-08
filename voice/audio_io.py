@@ -5,73 +5,88 @@ VoiceBridge. This is the only module that imports from stt/.
 The segmenter's START_OF_SPEECH callback is the barge-in fast path; the
 completed utterance goes to Whisper in a worker thread (CPU-bound) and the
 text reaches the bridge as a transcript.
+
+Every knob comes from stt/settings.py -- the same module stt/agent.py reads,
+so the tutor's ear and the standalone STT worker are always configured
+identically. Nothing is declared here.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from typing import AsyncIterator
 
+from stt import settings
+from stt.transcripts import TranscriptLog
 from voice.bridge import VoiceBridge
 
 logger = logging.getLogger("v-tutor.audio")
-
-# Same knobs as stt/agent.py, same env names, so the two agree.
-MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "base")
-DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
-COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
-BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "5"))
-MIN_SPEECH_DURATION = float(os.getenv("VAD_MIN_SPEECH_DURATION", "0.1"))
-MIN_SILENCE_DURATION = float(os.getenv("VAD_MIN_SILENCE_DURATION", "0.5"))
-MAX_UTTERANCE_DURATION = float(os.getenv("VAD_MAX_UTTERANCE_DURATION", "30.0"))
-
-# Whisper's favourite hallucinations on near-silence; treated as no speech.
-_NOISE = {"thank you.", "thanks.", "thank you", "you", "bye.", ".", "okay.", "hmm."}
 
 
 class SpeechInput:
     """Owns the VAD segmenter and the Whisper model (both loaded once)."""
 
-    def __init__(self, transcriber=None, segmenter=None) -> None:
+    def __init__(self, transcriber=None, segmenter=None, transcript_log=None) -> None:
         self._transcriber = transcriber
         self._segmenter = segmenter
+        # Same CSV the standalone stt/agent.py writes, same columns: a tutor
+        # session leaves the same evidence trail as a bare STT session.
+        self._log = transcript_log
+        if self._log is None and settings.LOG_TRANSCRIPTS:
+            self._log = TranscriptLog(settings.TRANSCRIPTS_CSV)
 
     def load(self) -> None:
         if self._transcriber is None:
             from stt.transcriber import WhisperTranscriber
             t = time.perf_counter()
-            self._transcriber = WhisperTranscriber(model_size=MODEL_SIZE, device=DEVICE,
-                                                   compute_type=COMPUTE_TYPE, beam_size=BEAM_SIZE)
-            logger.info("whisper %s loaded in %.1fs", MODEL_SIZE, time.perf_counter() - t)
+            self._transcriber = WhisperTranscriber(
+                model_size=settings.WHISPER_MODEL_SIZE, device=settings.WHISPER_DEVICE,
+                compute_type=settings.WHISPER_COMPUTE_TYPE, beam_size=settings.WHISPER_BEAM_SIZE,
+                cpu_threads=settings.WHISPER_CPU_THREADS, single_pass=settings.WHISPER_SINGLE_PASS)
+            logger.info("whisper %s loaded in %.1fs", settings.WHISPER_MODEL_SIZE, time.perf_counter() - t)
+            if settings.WHISPER_WARMUP:
+                # load() is called from prewarm / before the tutor speaks, so
+                # the lazy init cost lands here and not on the learner's first
+                # sentence (where it would add ~1s to the barge-in round trip).
+                self._transcriber.warmup()
         if self._segmenter is None:
             from stt.vad import AudioSegmenter
-            self._segmenter = AudioSegmenter(min_speech_duration=MIN_SPEECH_DURATION,
-                                             min_silence_duration=MIN_SILENCE_DURATION,
-                                             max_utterance_duration=MAX_UTTERANCE_DURATION)
+            self._segmenter = AudioSegmenter(min_speech_duration=settings.VAD_MIN_SPEECH_DURATION,
+                                             min_silence_duration=settings.VAD_MIN_SILENCE_DURATION,
+                                             max_utterance_duration=settings.VAD_MAX_UTTERANCE_DURATION)
 
     async def run_frames(self, frames: AsyncIterator, bridge: VoiceBridge, label: str = "mic") -> None:
         self.load()
         async for utt in self._segmenter.process_frames(frames, on_speech_start=bridge.on_speech_start,
                                                         label=label):
-            await self._handle(utt, bridge)
+            await self._handle(utt, bridge, label)
 
-    async def run_track(self, track, bridge: VoiceBridge) -> None:
+    async def run_track(self, track, bridge: VoiceBridge, label: str = "learner") -> None:
         self.load()
         async for utt in self._segmenter.process_track(track, on_speech_start=bridge.on_speech_start):
-            await self._handle(utt, bridge)
+            await self._handle(utt, bridge, label)
 
-    async def _handle(self, utt, bridge: VoiceBridge) -> None:
+    async def _handle(self, utt, bridge: VoiceBridge, label: str = "learner") -> None:
         try:
             text, lang, prob, whisper_ms = await asyncio.to_thread(self._transcriber.transcribe, utt.frames)
         except Exception:  # noqa: BLE001
             logger.exception("whisper failed")
             text, lang, prob, whisper_ms = "", None, 0.0, 0.0
-        if text.strip().lower() in _NOISE and utt.vad_duration_sec < 1.0:
+        if (text.strip().lower() in settings.SHORT_NOISE_PHRASES
+                and utt.vad_duration_sec < settings.SHORT_NOISE_MAX_SEC):
             text = ""
+        total_ms = (time.perf_counter() - utt.end_time) * 1000
         logger.info("STT %.2fs -> %r (%s %.2f, %.0f ms)", utt.vad_duration_sec, text, lang, prob, whisper_ms)
+        # The graph first: it is what the learner is waiting for. The CSV row is
+        # a buffered append (tens of microseconds) and can follow.
         bridge.on_transcript(text, lang=lang, prob=prob, duration_s=utt.vad_duration_sec, whisper_ms=whisper_ms)
+        if self._log is not None and text:
+            self._log.append(label, text, lang, prob, utt.vad_duration_sec, whisper_ms, total_ms)
+
+    def close(self) -> None:
+        if self._log is not None:
+            self._log.close()
 
 
 async def mic_frames(device: int | str | None = None, sample_rate: int = 16000,

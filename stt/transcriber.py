@@ -1,15 +1,56 @@
 """
 transcriber.py
-Handles audio format conversion and Whisper inference.
+Audio format conversion + Whisper inference. Shared by both entrypoints:
+`stt/agent.py` (standalone STT worker) and `voice/audio_io.py` (the tutor).
+
+Latency notes -- everything here exists to keep "user stopped talking ->
+transcript" short, because on CPU that number is ~100% Whisper:
+
+  1. Single encoder pass. `WhisperModel.transcribe(language=None)` runs the
+     encoder TWICE on a short utterance: once inside detect_language(), then
+     again in generate_segments(), which throws the first result away. For a
+     2s utterance on `base`/int8 the encoder is ~60% of the whole call, so
+     that duplicate pass is roughly half the latency. `_single_encode()`
+     encodes once, reads the language off that output, and hands the same
+     encoder output to generate_segments(). Language detection is unchanged --
+     same model, same features, same probabilities.
+  2. cpu_threads pinned to physical cores (see settings.WHISPER_CPU_THREADS).
+     CTranslate2's default oversubscribes SMT siblings and is ~25% slower.
+  3. Greedy decoding, no timestamp tokens, no cross-window prompt.
+
+`_single_encode()` reaches into faster-whisper internals, so it is version
+sensitive. Every failure falls back to the plain public API permanently, which
+is only slower -- never wrong. Set WHISPER_SINGLE_PASS=0 to disable it.
 """
 
+from __future__ import annotations
+
+import inspect
+import logging
 import time
+from dataclasses import fields as dataclass_fields
+
 import numpy as np
 from faster_whisper import WhisperModel
+from faster_whisper.audio import pad_or_trim
+from faster_whisper.tokenizer import Tokenizer
+from faster_whisper.transcribe import TranscriptionOptions, get_suppressed_tokens
 from livekit import rtc
 
-# If running on Python 3.13+, make sure `pip install audioop-lts` is installed.
-import audioop
+try:  # imported as `stt.transcriber` (tutor) or as `transcriber` (stt/agent.py)
+    from stt.audio import frames_to_float32
+except ImportError:  # pragma: no cover
+    from audio import frames_to_float32
+
+logger = logging.getLogger("stt-orchestrator")
+
+# Decoder settings that cost accuracy nowhere but save tokens: we never read
+# timestamps, and each utterance is transcribed standalone, so there is no
+# previous text worth conditioning on.
+_DECODE_OVERRIDES = {
+    "without_timestamps": True,
+    "condition_on_previous_text": False,
+}
 
 
 class WhisperTranscriber:
@@ -18,18 +59,19 @@ class WhisperTranscriber:
         model_size: str = "base",
         device: str = "cpu",
         compute_type: str = "int8",
-        beam_size: int = 5,
+        beam_size: int = 1,
         cpu_threads: int = 0,
+        single_pass: bool = True,
     ):
         """
         Loads the faster-whisper model into memory once upon startup.
 
-        beam_size: the main latency/accuracy knob for decoding. Lower it
-        (e.g. 1, greedy decoding) for noticeably faster responses at a small
-        accuracy cost; the default of 5 matches faster-whisper's own default.
-        cpu_threads: 0 lets CTranslate2 pick based on available cores. Set
-        explicitly if you're running multiple model instances on one box and
-        want to avoid them fighting over threads.
+        beam_size: decoding width. 1 (greedy) is the default; with the language
+        already pinned by detection it is a few percent faster than 5 and
+        barely less accurate. Raise it if you care about accuracy over latency.
+        cpu_threads: 0 lets CTranslate2 pick, which oversubscribes on SMT CPUs.
+        Pass the physical core count (settings.WHISPER_CPU_THREADS does).
+        single_pass: use the one-encoder-pass fast path (see module docstring).
         """
         self.model = WhisperModel(
             model_size,
@@ -38,54 +80,136 @@ class WhisperTranscriber:
             cpu_threads=cpu_threads,
         )
         self.beam_size = beam_size
+        self.single_pass = single_pass
+        self._tokenizers: dict[str, Tokenizer] = {}
+        self._options: dict[str, TranscriptionOptions] = {}
 
+    # ------------------------------------------------------------------ audio
     def frames_to_float32(self, frames: list[rtc.AudioFrame]) -> np.ndarray:
+        """LiveKit PCM frames -> 16kHz mono float32 in [-1.0, 1.0]."""
+        return frames_to_float32(frames)
+
+    # ------------------------------------------------------------- fast path
+    def _build_options(self, tokenizer: Tokenizer) -> TranscriptionOptions:
         """
-        Converts raw LiveKit PCM frames to 16kHz mono float32 numpy array.
-        Whisper strictly expects 16,000 samples per second in [-1.0, 1.0].
+        Reproduce the TranscriptionOptions that WhisperModel.transcribe() would
+        have built, with our overrides applied.
+
+        Defaults are read off transcribe()'s own signature rather than hardcoded,
+        so a faster-whisper upgrade that changes a default is picked up instead
+        of silently diverging. A field with no matching parameter raises, which
+        sends the caller back to the public API.
         """
-        if not frames:
-            return np.array([], dtype=np.float32)
+        defaults = {
+            name: p.default
+            for name, p in inspect.signature(WhisperModel.transcribe).parameters.items()
+            if p.default is not inspect.Parameter.empty
+        }
+        overrides = {"beam_size": self.beam_size, **_DECODE_OVERRIDES}
 
-        pcm_bytes = b"".join(f.data.tobytes() for f in frames)
-        in_rate = frames[0].sample_rate
-        num_channels = frames[0].num_channels
+        values = {}
+        for field in dataclass_fields(TranscriptionOptions):
+            name = field.name
+            if name in overrides:
+                values[name] = overrides[name]
+            elif name == "temperatures":  # the one field that isn't 1:1 named
+                temp = defaults["temperature"]
+                values[name] = list(temp) if isinstance(temp, (list, tuple)) else [temp]
+            elif name == "suppress_tokens":
+                tokens = defaults.get("suppress_tokens")
+                values[name] = get_suppressed_tokens(tokenizer, tokens) if tokens else tokens
+            elif name in defaults:
+                values[name] = defaults[name]
+            else:
+                raise RuntimeError(f"no default for TranscriptionOptions.{name}")
+        return TranscriptionOptions(**values)
 
-        # 1. Downmix to mono if stereo
-        if num_channels > 1:
-            pcm_bytes = audioop.tomono(pcm_bytes, 2, 0.5, 0.5)
+    def _for_language(self, language: str) -> tuple[Tokenizer, TranscriptionOptions]:
+        if language not in self._tokenizers:
+            tokenizer = Tokenizer(
+                self.model.hf_tokenizer,
+                self.model.model.is_multilingual,
+                task="transcribe",
+                language=language,
+            )
+            self._tokenizers[language] = tokenizer
+            self._options[language] = self._build_options(tokenizer)
+        return self._tokenizers[language], self._options[language]
 
-        # 2. Resample to 16kHz
-        if in_rate != 16000:
-            pcm_bytes, _ = audioop.ratecv(pcm_bytes, 2, 1, in_rate, 16000, None)
+    def _single_encode(self, audio: np.ndarray) -> tuple[str, str, float]:
+        """Encode once, detect the language from that output, then decode it."""
+        model = self.model
+        nb_max_frames = model.feature_extractor.nb_max_frames
 
-        # 3. Normalize 16-bit integers to float32 in [-1.0, 1.0]
-        int16_array = np.frombuffer(pcm_bytes, dtype=np.int16)
-        return int16_array.astype(np.float32) / 32768.0
+        features = model.feature_extractor(audio)
+        # Exactly the window WhisperModel.detect_language() and the first
+        # iteration of generate_segments() would each have encoded.
+        encoder_output = model.encode(pad_or_trim(features[..., :nb_max_frames]))
+
+        token, probability = model.model.detect_language(encoder_output)[0][0]
+        language = token[2:-2]  # "<|hi|>" -> "hi"
+
+        tokenizer, options = self._for_language(language)
+        segments = model.generate_segments(features, tokenizer, options, False, encoder_output)
+        text = " ".join(seg.text.strip() for seg in segments).strip()
+        return text, language, probability
+
+    def _public_api(self, audio: np.ndarray) -> tuple[str, str, float]:
+        segments, info = self.model.transcribe(
+            audio,
+            language=None,
+            beam_size=self.beam_size,
+            **_DECODE_OVERRIDES,
+        )
+        text = " ".join(seg.text.strip() for seg in segments).strip()
+        return text, info.language, info.language_probability
+
+    # ------------------------------------------------------------- inference
+    def transcribe_array(self, audio: np.ndarray) -> tuple[str, str, float, float]:
+        """
+        Same contract as transcribe(), for audio that is already 16kHz mono
+        float32 (benchmarks, tests, wav fixtures).
+        """
+        if audio.size == 0:
+            return "", "", 0.0, 0.0
+
+        t_start = time.perf_counter()
+        if self.single_pass:
+            try:
+                text, language, probability = self._single_encode(audio)
+            except Exception:
+                # Internals moved (faster-whisper upgrade). Say so once, then
+                # stay on the public API for the rest of the process.
+                self.single_pass = False
+                logger.exception("single-encode path failed; falling back to WhisperModel.transcribe")
+                text, language, probability = self._public_api(audio)
+        else:
+            text, language, probability = self._public_api(audio)
+        duration_ms = (time.perf_counter() - t_start) * 1000
+
+        return text, language, probability, duration_ms
 
     def transcribe(self, frames: list[rtc.AudioFrame]) -> tuple[str, str, float, float]:
         """
         Runs inference on captured audio frames.
 
-        This is a blocking, CPU-bound call. The caller (agent.py) runs it via
-        asyncio.to_thread rather than awaiting it directly, so it doesn't
-        stall the event loop -- and therefore doesn't stall VAD/audio
-        processing for other participants in the room -- while it runs.
+        This is a blocking, CPU-bound call. Callers (stt/agent.py,
+        voice/audio_io.py) run it via asyncio.to_thread rather than awaiting it
+        directly, so it doesn't stall the event loop -- and therefore doesn't
+        stall VAD/audio processing or the barge-in fast path -- while it runs.
 
         Returns: (transcribed_text, detected_language, language_prob, inference_duration_ms)
         """
-        audio_np = self.frames_to_float32(frames)
-        if audio_np.size == 0:
-            return "", "", 0.0, 0.0
+        return self.transcribe_array(self.frames_to_float32(frames))
 
-        t_start = time.perf_counter()
-        segments, info = self.model.transcribe(
-            audio_np,
-            language=None,
-            beam_size=self.beam_size,
-        )
-        text = " ".join(seg.text.strip() for seg in segments).strip()
-        t_end = time.perf_counter()
-
-        duration_ms = (t_end - t_start) * 1000
-        return text, info.language, info.language_probability, duration_ms
+    def warmup(self, seconds: float = 1.0) -> float:
+        """
+        Run one throwaway inference so the first real utterance doesn't pay for
+        lazy weight loading and allocator warmup (~1s extra, otherwise landing
+        on the learner's very first sentence). Returns the ms it took.
+        """
+        t = time.perf_counter()
+        self.transcribe_array(np.zeros(int(16000 * seconds), dtype=np.float32))
+        elapsed = (time.perf_counter() - t) * 1000
+        logger.info("whisper warmup: %.0f ms (single_pass=%s)", elapsed, self.single_pass)
+        return elapsed
