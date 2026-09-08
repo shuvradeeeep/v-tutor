@@ -506,3 +506,43 @@ def test_i_want_to_learn_the_topic_x_switches_mid_lesson(speaker, clock):
     assert runner.state["topic"] == "respiration"
     said = " ".join(l.text for l in speaker.lines[-3:])
     assert "couldn't find a part" not in said
+
+
+# --- questions about the session, not the subject --------------------------
+# Regression: "how long will this teaching go on?" was retrieved (score 0.22),
+# missed, web-searched, and answered "about three to four months" -- the length
+# of a teaching practicum.
+
+def test_how_long_is_answered_from_the_lesson_plan(lesson, speaker):
+    n = len(speaker.lines)
+    lesson.barge_in("can you tell me how long will this session go on")
+    said = " ".join(l.text for l in speaker.lines[n:])
+    assert "part 1 of" in said and "minutes" in said
+    assert "months" not in said
+    assert lesson.state["answer_mode"] == "status"
+
+
+def test_what_are_we_studying(lesson, speaker):
+    n = len(speaker.lines)
+    lesson.barge_in("what are we studying")
+    assert "The Heart" in " ".join(l.text for l in speaker.lines[n:])
+
+
+def test_who_are_you(lesson, speaker):
+    n = len(speaker.lines)
+    lesson.barge_in("who are you")
+    assert "voice tutor" in " ".join(l.text for l in speaker.lines[n:])
+
+
+def test_a_subject_question_is_still_a_subject_question(lesson, speaker):
+    """"How many chambers" must not be swallowed by the session-status path."""
+    n = len(speaker.lines)
+    lesson.barge_in("how many chambers does the heart have")
+    assert "four chambers" in " ".join(l.text for l in speaker.lines[n:]).lower()
+
+
+def test_naming_a_topic_the_lesson_lacks_offers_a_switch(lesson, speaker):
+    """Was a dead end: "I couldn't find a part about that. Let's carry on." """
+    lesson.barge_in("go to the part about the moon")
+    said = " ".join(l.text for l in speaker.lines[-3:])
+    assert "switch to" in said and "moon" in said

@@ -136,6 +136,12 @@ class TutorNodes:
                          + (f" (for {state['grade']})" if state.get("grade") else ""))
         if (covered := self._covered(state)):
             lines.append(f"Covered so far: {covered}")
+        # What the learner interrupted. Without it, "what did you say about
+        # British?" was answered from the previous exchange (a Ted Lasso
+        # question) instead of the sentence about the British Empire that was
+        # actually being read out.
+        if (heard := state.get("heard_sentence") or state.get("pending_text")):
+            lines.append(f'You were just saying: "{heard[:300]}"')
         # Questions that have aged out of the window are still named, which is
         # a line or two of tokens instead of the whole exchange.
         recent_qs = {e["q"] for e in (state.get("recent_exchanges") or [])}
@@ -665,6 +671,12 @@ class TutorNodes:
             if hit and hit.score >= config.RETRIEVAL_TAU * 0.6:
                 target = first_beat.get(hit.doc.section_id)
         if target is None:
+            # Naming a subject this lesson does not contain is usually a
+            # request for a different lesson. "Let's carry on" was a dead end
+            # -- say how to get there instead.
+            if kind == "topic" and (wanted := str(nav.get("value") or "").strip()):
+                return {"answer": self._T(state, "nav_switch_offer", title=wanted),
+                        "nav_target": None}
             return {"answer": self._T(state, "nav_not_found"), "nav_target": None}
         self.d.emit("navigate", kind=kind, to_beat=target)
         return {"beat_index": target, "beat_spoken": False, "heard_cursor": None,
@@ -832,6 +844,43 @@ class TutorNodes:
         mode = "notes" if state.get("retrieval_score", 0.0) >= config.RETRIEVAL_TAU else "web"
         return _merge({"answer": answer, "answer_mode": mode},
                       self._remember(state, utter, answer))
+
+    # Rime coda reads at roughly this rate; only used for a spoken estimate,
+    # so being ten percent out does not matter.
+    SPEAKING_WPM = 150
+
+    def session_status(self, state: dict) -> dict:
+        """
+        Answer a question about the session from state, never from a model.
+
+        "How long will this session go?" used to be retrieved (score 0.12),
+        miss, and land in a web search for "how long will this teaching go on",
+        which answered "three to four months". The lesson plan knows the real
+        answer, it costs nothing, and it cannot be wrong.
+        """
+        kind = intent_mod.is_meta_question(state.get("user_utterance") or "") or "length"
+        plan = state.get("lesson_plan") or []
+        idx = min(state.get("beat_index", 0), max(0, len(plan) - 1))
+        title = state.get("source_title") or state.get("topic") or ""
+
+        if kind == "identity":
+            answer = self._T(state, "who_am_i")
+        elif kind == "topic" or not plan:
+            grade = state.get("grade")
+            answer = self._T(state, "status_topic", title=title,
+                             grade=f" {grade}" if grade else "")
+            if plan:
+                answer = f"{answer} {self._T(state, 'status_progress', done=idx + 1, total=len(plan))}"
+        else:
+            remaining = plan[idx:]
+            words = sum(word_count(b.get("text") or "") for b in remaining)
+            minutes = max(1, round(words / self.SPEAKING_WPM))
+            sections_left = len({b.get("section_id") for b in remaining})
+            answer = self._T(state, "status_length", minutes=minutes, sections=sections_left,
+                             done=idx + 1, total=len(plan))
+        self.d.emit("session_status", kind=kind, beat=idx, of=len(plan))
+        return _merge({"answer": answer, "answer_mode": "status"},
+                      self._remember(state, state.get("user_utterance") or "", answer))
 
     def discard(self, state: dict) -> dict:
         self.d.emit("discard", born=state.get("born_turn_id"), live=self.d.clock.current(),

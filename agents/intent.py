@@ -17,7 +17,8 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
-VALID_INTENTS = {"question", "explain", "navigate", "command", "session", "backchannel", "unknown"}
+VALID_INTENTS = {"question", "explain", "navigate", "command", "session", "backchannel",
+                 "meta", "unknown"}
 
 
 @dataclass
@@ -237,7 +238,10 @@ _PAUSE_REQUEST = re.compile(
     r"\b(?:i'?ll|i will|i'?m going to)\s+be\s+(?:right\s+)?back\b|\bbe\s+right\s+back\b|\bbrb\b|"
     r"\b(?:let'?s|can we)\s+take\s+a\s+(?:break|pause)\b|\bi need a (?:break|minute|moment)\b|"
     r"\b(?:just|please)\s+(?:pause|wait|hold on)\b|\b(?:pause|wait)\s+please\b|"
-    r"\bzara ruko\b|\bthoda wait\b|\bek minute ruko\b|\bmain aata hoon\b|\bmain aati hoon\b",
+    # "zara ruko" came back from Whisper as "Zara Rukul." -- match the stem so
+    # the transcription's guess at the ending does not matter.
+    r"\b(?:zara|thoda|ek minute|ek sec)\s+ruk\w*|\bruk\s+ja\w*|\bthoda wait\b|"
+    r"\bmain aata hoon\b|\bmain aati hoon\b",
     re.IGNORECASE)
 
 # "let's continue the session now", "ok carry on then" -- a continue request
@@ -248,6 +252,49 @@ _PAUSE_REQUEST = re.compile(
 _CONTINUE_REQUEST = re.compile(
     r"^(?:ok(?:ay)?|so|please|now|and|let'?s|lets|we can|you can)?[, ]*"
     r"(?:continue|carry on|resume|keep going)\b", re.IGNORECASE)
+
+
+# --------------------------------------------------------------------------
+# Questions about the session itself, not about the subject
+#
+# "How long will this session go?" was retrieved, missed, sent to a web search
+# for "how long will this teaching go on", and answered "about three to four
+# months" -- the length of a teaching practicum. The tutor knows the real
+# answer from its own lesson plan, so these never go near a model.
+# --------------------------------------------------------------------------
+
+_SESSION_NOUN = r"(?:session|lesson|class|teaching|chapter|topic|this|it|we)"
+_META_LENGTH = re.compile(
+    rf"\bhow (?:long|much longer|many more)\b.{{0,40}}?\b{_SESSION_NOUN}\b|"
+    rf"\b{_SESSION_NOUN}\b.{{0,30}}?\bhow (?:long|much longer)\b|"
+    r"\bhow (?:much|many)\s+(?:is\s+)?(?:more\s+)?left\b|\bhow far (?:are we|along)\b|"
+    r"\bhow (?:many|much) (?:more )?(?:sections?|parts?|beats?|minutes?)\b|"
+    r"\bare we (?:almost |nearly )?(?:done|finished|there|over)\b|"
+    r"\bwhen (?:will|does) (?:this|it|the lesson|the session|the class) (?:end|finish|be over)\b|"
+    r"\bhow long (?:is|will) (?:this|it)\b|\bkitna baaki\b|\bkitni der\b|\bkab tak\b",
+    re.IGNORECASE)
+_META_TOPIC = re.compile(
+    r"\bwhat (?:are we|am i|is this) (?:studying|learning|doing|about)\b|"
+    r"\bwhich (?:topic|lesson|chapter) (?:is this|are we (?:on|doing))\b|"
+    r"\bwhat(?:'s| is) (?:the|this) (?:topic|lesson|chapter)\b|"
+    r"\bwhich class (?:is this|am i)\b|\bremind me what we(?:'re| are) (?:doing|studying)\b",
+    re.IGNORECASE)
+_META_IDENTITY = re.compile(
+    r"\bwho are you\b|\bwhat are you\b|\bare you (?:a )?(?:robot|bot|ai|human|real|person|teacher)\b|"
+    r"\bwhat(?:'s| is) your name\b|\bwhat can you do\b|\bhow do you work\b",
+    re.IGNORECASE)
+
+
+def is_meta_question(utter: str) -> str | None:
+    """"length" | "topic" | "identity" -- a question about the session, or None."""
+    text = _norm(utter)
+    if _META_LENGTH.search(text):
+        return "length"
+    if _META_TOPIC.search(text):
+        return "topic"
+    if _META_IDENTITY.search(text):
+        return "identity"
+    return None
 
 
 def classify_rules(utter: str, *, paused: bool = False) -> Classification | None:
@@ -265,7 +312,10 @@ def classify_rules(utter: str, *, paused: bool = False) -> Classification | None
         return Classification("session", session_cmd="restart")
     if _en(text, "stop for today", "that's enough", "that is enough", "thats enough", "i'm done",
            "im done", "i am done", "quit", "exit", "goodbye", "bye", "see you", "stop the lesson",
-           "end the lesson", "stop teaching", "band karo", "bas ho gaya", "aaj ke liye bas", "alvida") \
+           "end the lesson", "stop teaching", "band karo", "bas ho gaya", "aaj ke liye bas", "alvida",
+           # "let's stop now" ends the session; a bare "stop now" is a pause.
+           "let's stop", "lets stop", "let us stop", "we're done", "were done", "we are done",
+           "that's all", "thats all", "that is all", "khatam", "band kar do") \
             or _hi(text, "बंद करो", "आज के लिए बस", "बस हो गया", "अलविदा", "बाय"):
         return Classification("session", session_cmd="quit")
     if (n <= 6 and _CONTINUE_REQUEST.search(text)) \
@@ -366,6 +416,12 @@ def classify_rules(utter: str, *, paused: bool = False) -> Classification | None
     # ---- backchannel -----------------------------------------------------
     if _BACKCHANNEL_EN.fullmatch(text) or text.strip(" .!,") in _BACKCHANNEL_HI:
         return Classification("backchannel")
+
+    # ---- meta: about the session, answerable from the lesson plan ---------
+    # Checked before "question" on purpose: these look exactly like questions
+    # and retrieval has nothing useful to say about them.
+    if is_meta_question(text):
+        return Classification("meta")
 
     # ---- question (explicit) ---------------------------------------------
     if text.endswith("?") or _QUESTION_START_EN.match(text) or any(q in text for q in _QUESTION_HI) \
@@ -470,6 +526,11 @@ _SWITCH_MARKER = re.compile(
     # "let's start with respiration" -- naming where to start is naming a new
     # lesson, not a section of the current one.
     r"\b(?:start|begin)\s+(?:with|on)\b|"
+    # "I want to learn football now" names a subject outright. The negative
+    # lookahead keeps "I want to learn more about valves" and "I want to learn
+    # how valves work" as questions inside the current lesson.
+    r"\b(?:i\s+want\s+to|i'?d\s+like\s+to|can\s+we|let'?s)\s+(?:learn|study|do|read)\s+"
+    r"(?!more\b|about\b|how\b|what\b|why\b|when\b|it\b|this\b|that\b)|"
     r"\b(?:topic|lesson)\s+badal|\bbadal\s+do\b|\bdusra\s+(?:topic|chapter)\b", re.IGNORECASE)
 # "I wanted X, not Y" -- the tutor misheard the topic and is teaching the wrong one.
 _SWITCH_CORRECTION = re.compile(
@@ -485,8 +546,11 @@ _SWITCH_LEAD = re.compile(
     r"(?:start|begin)\s+(?:with|on)\s*|"
     r"(?:change|switch)\s*(?:the\s*)?(?:topic|lesson|subject|chapter)?\s*(?:to|into)\s*"
     r")?", re.IGNORECASE)
-_TOPIC_WORD_LEAD = re.compile(r"^(?:the\s+)?(?:topic|lesson|chapter|subject)\s*(?:on|about|is|of)?\s*",
-                              re.IGNORECASE)
+_TOPIC_WORD_LEAD = re.compile(r"^(?:to\s+|into\s+)?(?:the\s+)?(?:topic|lesson|chapter|subject)\s*"
+                              r"(?:on|about|is|of|to|into)?\s*", re.IGNORECASE)
+# Trailing words that are not part of a topic name.
+_SWITCH_TAIL = re.compile(r"\s*\b(?:now|please|instead|today|ok(?:ay)?|then|next)\b[\s.?!]*$",
+                          re.IGNORECASE)
 
 
 def is_topic_switch(utter: str) -> bool:
@@ -508,6 +572,15 @@ def parse_topic_switch(utter: str) -> str | None:
         if _SWITCH_MARKER.search(sentence) or _SWITCH_CORRECTION.search(sentence):
             text = sentence.strip()
             break
+    # Whatever follows the switch marker IS the topic: "can we switch the topic
+    # to volleyball now" -> "volleyball now". Anchoring on the start of the
+    # sentence instead produced "can we switch the volleyball now", which was
+    # then looked up on Wikipedia and taught as "Dead or Alive Xtreme".
+    if (marker := _SWITCH_MARKER.search(text)):
+        tail = text[marker.end():].strip()
+        if _words(tail) >= 1:
+            text = tail
+
     # "X not Y" / "X instead of Y" / "X instead": the wanted topic comes first.
     m = re.match(r"^(.*?)\s+(?:not|instead of|and not|rather than)\s+\S+", text) \
         or re.match(r"^(.*?)\s+instead\b", text)
@@ -515,6 +588,7 @@ def parse_topic_switch(utter: str) -> str | None:
     candidate = _SWITCH_LEAD.sub("", candidate, count=1)
     # "the topic respiration": the article belongs to "topic", not to the topic.
     candidate = _TOPIC_WORD_LEAD.sub("", candidate, count=1)
+    candidate = _SWITCH_TAIL.sub("", candidate)
     topic, _ = parse_topic_grade(candidate)
     return topic
 
@@ -607,13 +681,14 @@ def split_compound(utter: str, *, paused: bool = False) -> list[str]:
 # Kept short on purpose: the free Groq tier allows 8000 tokens/minute on the
 # fast model, and this prompt is sent on every rule miss.
 LLM_SYSTEM = """A school student interrupted a voice tutor mid-sentence. Label the utterance. You may first be given what the tutor was saying and the conversation so far: use it to resolve references, but label ONLY the line marked "Utterance:". Reply with one JSON object only:
-{"intent": question|explain|navigate|command|session|backchannel|unknown, "command": repeat|slower|faster|switch_lesson_lang|null, "command_arg": hi|en|null, "session_cmd": pause|continue|restart|quit|null, "nav_target": {"kind": prev|next|index|topic, "value": ...}|null, "reply_lang": hi|en|es|fr|de|it|pt|ja|null}
+{"intent": question|explain|navigate|command|session|backchannel|meta|unknown, "command": repeat|slower|faster|switch_lesson_lang|null, "command_arg": hi|en|null, "session_cmd": pause|continue|restart|quit|null, "nav_target": {"kind": prev|next|index|topic, "value": ...}|null, "reply_lang": hi|en|es|fr|de|it|pt|ja|null}
 - backchannel: only "I'm following, carry on" (mm-hmm, okay, um okay so). Confusion or a comment is never backchannel.
 - explain: didn't understand the last sentence; wants it defined, simpler, spelled, pronounced, an example, or translated ("wait what", "huh", "that went over my head", "the ventricle thing"). A bare language name ("in hindi", "hindi mein") = explain once in that language: reply_lang set.
 - command repeat: didn't HEAR it ("sorry I wasn't listening", "I missed that"). switch_lesson_lang only for the WHOLE lesson from now on.
 - question: wants information or a belief checked ("I think plants eat sunlight", "that's wrong isn't it", "so basically the heart is a pump", "no I meant the other one").
 - navigate: prev; next ("I already know this part"); topic with a value ("let's do the history bit" -> topic "history"); index ("section 3").
 - session: pause ("let's take a break"), continue ("I'm back"), restart, quit ("we're done here").
+- meta: about the SESSION, not the subject ("how long will this take", "how much is left", "what are we studying", "who are you").
 - unknown: no request in it ("this is boring").
 Torn between backchannel and explain: explain. Torn between explain and question: question if it needs facts beyond the last sentence."""
 

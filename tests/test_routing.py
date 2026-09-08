@@ -180,3 +180,55 @@ def test_start_with_names_a_new_lesson():
     from agents.intent import parse_topic_switch
     assert parse_topic_switch("let's start with respiration") == "respiration"
     assert parse_topic_switch("begin with the water cycle") == "the water cycle"
+
+
+def test_switch_target_is_what_follows_the_marker():
+    """Regression: "can we switch the topic to volleyball now" was parsed as
+    "can we switch the volleyball now" and taught as Dead or Alive Xtreme."""
+    from agents.intent import parse_topic_switch
+    assert parse_topic_switch("Can we switch the topic to volleyball now?") == "volleyball"
+    assert parse_topic_switch("I want to switch the topic to sexy artists.") == "sexy artists"
+    assert parse_topic_switch("change the topic to the water cycle please") == "the water cycle"
+    assert parse_topic_switch("I want to learn football now.") == "football"
+
+
+def test_naming_a_subject_switches_but_asking_for_detail_does_not():
+    from agents.intent import is_topic_switch
+    assert is_topic_switch("I want to learn football now")
+    assert is_topic_switch("can we do algebra")
+    assert not is_topic_switch("I want to learn more about valves")
+    assert not is_topic_switch("I want to learn how valves work")
+
+
+def test_misheard_hindi_pause_still_pauses():
+    """Whisper wrote "zara ruko" as "Zara Rukul." """
+    from agents.intent import classify_rules
+    for utter in ("Zara Rukul.", "zara ruko", "thoda rukiye", "ruk jao"):
+        c = classify_rules(utter)
+        assert c and c.session_cmd == "pause", utter
+
+
+def test_lets_stop_quits_without_needing_the_model():
+    from agents.intent import classify_rules
+    for utter in ("Let's stop now.", "we're done", "that's all"):
+        c = classify_rules(utter)
+        assert c and c.session_cmd == "quit", utter
+
+
+def test_session_questions_are_meta():
+    from agents.intent import is_meta_question
+    assert is_meta_question("can you just tell me how long will this teaching go on") == "length"
+    assert is_meta_question("how much is left") == "length"
+    assert is_meta_question("are we almost done") == "length"
+    assert is_meta_question("what are we studying") == "topic"
+    assert is_meta_question("who are you") == "identity"
+    # subject questions must not be captured
+    assert is_meta_question("how long does a heartbeat last") is None
+    assert is_meta_question("how many chambers does the heart have") is None
+
+
+def test_initials_do_not_end_a_sentence():
+    from agents.material import split_sentences
+    out = split_sentences("William G. Morgan created volleyball in 1895. He was a director.")
+    assert out[0].startswith("William G. Morgan created")
+    assert len(out) == 2

@@ -42,6 +42,7 @@ def build_graph(deps: Deps, checkpointer: Any | None = None):
         "choose_language", "choose_source", "parse_pdf", "fetch_material", "ingest_material",
         "teach_step", "await_event", "handle_interrupt", "classify_intent", "clarify",
         "session_handler", "command_handler", "find_section", "explain", "qa_retrieve",
+        "session_status",
         "direct_answer", "web_search_node", "compose_answer", "discard", "resume_controller",
         "promote_queued",
     ):
@@ -88,6 +89,7 @@ def build_graph(deps: Deps, checkpointer: Any | None = None):
         "explain": "explain",
         "question": "qa_retrieve",
         "backchannel": "resume_controller",
+        "meta": "session_status",       # "how long will this take?"
     })
     g.add_conditional_edges("session_handler", n.route_session, {
         "pause": "await_event",
@@ -109,7 +111,7 @@ def build_graph(deps: Deps, checkpointer: Any | None = None):
 
     # ---- every path that produces speech passes the fence -------------------
     fenced = {"current": "resume_controller", "stale": "discard"}
-    for node in ("compose_answer", "command_handler", "explain", "clarify"):
+    for node in ("compose_answer", "command_handler", "explain", "clarify", "session_status"):
         g.add_conditional_edges(node, n.fence_check, fenced)
     # direct_answer has two exits, so its fence is a pass-through node.
     g.add_node("fence_direct", lambda state: {})

@@ -41,7 +41,14 @@ def detect_lang(text: str) -> str:
 
 
 _SENT_SPLIT = re.compile(rf"(?<=[.!?{_DANDA}])\s+|\n{{2,}}")
-_ABBREV = re.compile(r"\b(e\.g|i\.e|etc|vs|Dr|Mr|Mrs|Ms|St|No|approx|c)\.$", re.IGNORECASE)
+_ABBREV = re.compile(r"\b(e\.g|i\.e|etc|vs|Dr|Mr|Mrs|Ms|St|No|approx|c|Jr|Sr|Prof|Fig|Ltd|Mt|Rev)\.$",
+                     re.IGNORECASE)
+# A middle initial is not the end of a sentence. "William G. Morgan created
+# volleyball" was split after "G.", and the tutor read out "William G. was a
+# person associated with the sport. Morgan created the sport..." -- case
+# sensitive on purpose, so a sentence ending in a lone lowercase letter is
+# still a sentence.
+_INITIAL = re.compile(r"\b[A-Z]\.$")
 
 
 def split_sentences(text: str) -> list[str]:
@@ -56,8 +63,8 @@ def split_sentences(text: str) -> list[str]:
         if not piece:
             continue
         buf = f"{buf} {piece}".strip() if buf else piece
-        if _ABBREV.search(buf):
-            continue                     # "e.g." is not a sentence end
+        if _ABBREV.search(buf) or _INITIAL.search(buf):
+            continue                     # "e.g." / "William G." is not a sentence end
         parts.append(buf)
         buf = ""
     if buf:

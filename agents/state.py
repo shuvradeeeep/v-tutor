@@ -10,7 +10,7 @@ import operator
 from typing import Annotated, Literal, TypedDict
 
 Intent = Literal[
-    "question", "explain", "navigate", "command", "session", "backchannel", "unknown"
+    "question", "explain", "navigate", "command", "session", "backchannel", "meta", "unknown"
 ]
 Command = Literal["repeat", "slower", "faster", "switch_lesson_lang"]
 SessionCmd = Literal["pause", "continue", "restart", "quit"]
