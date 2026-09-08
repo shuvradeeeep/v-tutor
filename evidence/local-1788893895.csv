@@ -1,0 +1,11 @@
+timestamp,elapsed_ms,session,event,payload
+2026-09-09T00:28:19,3527,local-1788893895,tts,"{""turn"": 0, ""words"": 10, ""synth_ms"": 0, ""audio_s"": 4.25, ""cached"": true}"
+2026-09-09T00:28:19,3528,local-1788893895,speak,"{""turn"": 0, ""kind"": ""system"", ""lang"": ""en"", ""text"": ""Great. What shall we study today, and for which class?""}"
+2026-09-09T00:28:23,7744,local-1788893895,playback_confirmed,"{""turn"": 0}"
+2026-09-09T00:28:25,9542,local-1788893895,stop,"{""cursor"": {""turn_id"": 0, ""words_heard"": null, ""text"": """", ""was_last_item"": true, ""playing"": false}}"
+2026-09-09T00:28:25,9542,local-1788893895,vad_start,"{""turn"": 1, ""stop_ms"": 0.11, ""cursor"": {""turn_id"": 0, ""words_heard"": null, ""text"": """", ""was_last_item"": true, ""playing"": false}}"
+2026-09-09T00:28:28,12929,local-1788893895,transcript,"{""text"": ""Autos and this is for last 6th."", ""lang"": ""en"", ""prob"": 0.3, ""vad_s"": 2.96, ""whisper_ms"": 424, ""cursor"": null, ""since_vad_start_ms"": 3387}"
+2026-09-09T00:28:28,12933,local-1788893895,interrupt,"{""turn"": 1, ""cursor"": null, ""heard"": ""What shall we study today, and for which class?""}"
+2026-09-09T00:28:28,12941,local-1788893895,tts,"{""turn"": 1, ""words"": 8, ""synth_ms"": 0, ""audio_s"": 2.33, ""cached"": true}"
+2026-09-09T00:28:28,12941,local-1788893895,speak,"{""turn"": 1, ""kind"": ""system"", ""lang"": ""en"", ""text"": ""Got it. And which class is this for?""}"
+2026-09-09T00:28:28,12963,local-1788893895,graph_turn_done,"{""ms"": 33, ""intent"": null, ""turn"": 1}"

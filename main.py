@@ -56,6 +56,39 @@ SHOW_EVENTS = {"vad_start", "transcript", "intent", "retrieve", "answer_mode", "
                "echo_drop", "half_duplex_on", "switch_topic"}
 
 
+# Events the web page reacts to (topic "events"). Everything else stays in
+# the console and the evidence CSV.
+UI_EVENTS = {"vad_start", "barge_in_deferred", "transcript", "echo_drop", "intent", "filler", "web_search", "web_aborted", "fragment_hold", "fragment_release",
+             "tts_drop_stale", "fence_drop", "discard", "tts_fallback", "tts", "half_duplex_on",
+             "playback_confirmed", "graph_turn_done", "second_learner_ignored"}
+
+
+def _ui_state(bridge) -> dict:
+    """What the page needs to draw the lesson header and progress bar."""
+    s = bridge.runner.state or {}
+    plan = s.get("lesson_plan") or []
+    titles: list[str] = []
+    for b in plan:
+        t = b.get("section_title") if isinstance(b, dict) else getattr(b, "section_title", None)
+        if t and (not titles or titles[-1] != t):
+            titles.append(t)
+    bi = int(s.get("beat_index") or 0)
+    cur = plan[bi] if 0 <= bi < len(plan) else None
+    cur_title = (cur.get("section_title") if isinstance(cur, dict) else getattr(cur, "section_title", None)) if cur else None
+    return {
+        "onboarding": s.get("onboarding_step"),
+        "topic": s.get("topic"), "grade": s.get("grade"), "source_title": s.get("source_title"),
+        "source_url": s.get("source_url"), "lang": s.get("active_lang"),
+        "sections": titles, "section_index": titles.index(cur_title) if cur_title in titles else -1,
+        "beat_index": bi, "beat_spoken": bool(s.get("beat_spoken")), "beats_total": len(plan),
+        "paused": bool(s.get("paused")), "finished": bridge.finished,
+        "stale_drops": s.get("stale_drops", 0),
+        "provider": bridge.speaker.provider, "model": config.RIME_MODEL_ID,
+        "speaker": config.LANG_SPEAKER.get(s.get("active_lang") or "en"),
+        "stress_ms": config.STRESS_DELAY_MS,
+    }
+
+
 def _console_event(name: str, p: dict) -> None:
     if name == "transcript":
         # The learner's own words, printed like the tutor's so a session reads
@@ -188,19 +221,39 @@ def run_livekit() -> None:
         await room.local_participant.publish_track(
             track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE))
 
-        def publish(role: str, text: str, meta: dict | None = None) -> None:
-            payload = json.dumps({"role": role, "text": text, **(meta or {})}, ensure_ascii=False)
+        def publish_json(topic: str, obj: dict) -> None:
+            payload = json.dumps(obj, ensure_ascii=False, default=str)
             asyncio.run_coroutine_threadsafe(
-                room.local_participant.publish_data(payload, reliable=True, topic="tutor"), loop)
+                room.local_participant.publish_data(payload, reliable=True, topic=topic), loop)
+
+        def publish(role: str, text: str, meta: dict | None = None) -> None:
+            publish_json("tutor", {"role": role, "text": text, **(meta or {})})
+
+        bridge = None   # assigned below; the callbacks run after it exists
+
+        def publish_state() -> None:
+            """A compact snapshot for the UI: lesson, progress, provider. Sent
+            after every graph turn, so the page never has to infer state."""
+            if bridge is None:
+                return
+            try:
+                publish_json("state", _ui_state(bridge))
+            except Exception:  # noqa: BLE001
+                logger.exception("state snapshot failed")
 
         def on_text(text: str, meta: dict) -> None:
             _console_text(text, meta)
-            publish("tutor", text, {"turn": meta.get("turn")})
 
         def on_event(name: str, p: dict) -> None:
             _console_event(name, p)
-            if name == "transcript":
+            if name == "speak":
+                publish("tutor", p.get("text") or "", {"turn": p.get("turn"), "kind": p.get("kind"), "lang": p.get("lang")})
+            elif name == "transcript":
                 publish("learner", p.get("text") or "", {"lang": p.get("lang")})
+            if name in UI_EVENTS:
+                publish_json("events", {"name": name, "payload": p})
+            if name in ("graph_turn_done", "ingest", "playback_confirmed", "navigate", "switch_topic"):
+                publish_state()
 
         session = f"{room.name}-{int(time.time())}"
         pdf = [p for p in (os.getenv("TUTOR_PDF") or "").split(";") if p.strip()] or None
@@ -213,15 +266,54 @@ def run_livekit() -> None:
         sp = ctx.proc.userdata.get("speech") or speech
         sp.load()
 
+        @room.on("data_received")
+        def on_data(pkt: rtc.DataPacket) -> None:
+            # Buttons on the web page. A press is delivered exactly like a
+            # spoken utterance, so it goes through the same intent rules,
+            # the same fence, and shows up in the same evidence CSV.
+            if pkt.topic != "control":
+                return
+            try:
+                msg = json.loads(pkt.data.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return
+            phrase = str(msg.get("say") or "").strip()[:200]
+            if phrase:
+                who = pkt.participant.identity if pkt.participant else "ui"
+                logger.info("button from %s: %r", who, phrase)
+                bridge.on_transcript(phrase, lang=None, prob=1.0)
+
         tasks: set[asyncio.Task] = set()
+        # One learner per room. A second device joining the same room used to
+        # get its microphone processed too, so every utterance arrived twice
+        # (two VAD starts, two transcripts, two graph turns). The first audio
+        # track wins; later participants are told and ignored.
+        learner: dict[str, object] = {"identity": None, "task": None}
 
         @room.on("track_subscribed")
         def on_track(track: rtc.Track, pub: rtc.TrackPublication, participant: rtc.RemoteParticipant) -> None:
-            if track.kind == rtc.TrackKind.KIND_AUDIO:
-                logger.info("listening to %s", participant.identity)
-                t = asyncio.create_task(sp.run_track(track, bridge, label=participant.identity))
-                tasks.add(t)
-                t.add_done_callback(tasks.discard)
+            if track.kind != rtc.TrackKind.KIND_AUDIO:
+                return
+            if learner["identity"] not in (None, participant.identity):
+                logger.warning("ignoring a second microphone from %s (learner is %s)",
+                               participant.identity, learner["identity"])
+                publish_json("events", {"name": "second_learner_ignored",
+                                        "payload": {"identity": participant.identity, "learner": learner["identity"]}})
+                return
+            old = learner["task"]
+            if old is not None and not old.done():
+                old.cancel()                     # same learner re-published (reconnect): one listener only
+            logger.info("listening to %s", participant.identity)
+            t = asyncio.create_task(sp.run_track(track, bridge, label=participant.identity))
+            learner["identity"], learner["task"] = participant.identity, t
+            tasks.add(t)
+            t.add_done_callback(tasks.discard)
+
+        @room.on("participant_disconnected")
+        def on_leave(participant: rtc.RemoteParticipant) -> None:
+            if participant.identity == learner["identity"]:
+                logger.info("learner %s left; the next microphone to join is the learner", participant.identity)
+                learner["identity"] = None
 
         # A participant may already be in the room when we join.
         for participant in room.remote_participants.values():
@@ -242,8 +334,11 @@ def run_livekit() -> None:
         ctx.add_shutdown_callback(shutdown)
 
         bridge.start()
+        bridge.wait_idle(60)            # runner.start() has run: state exists
+        publish_state()
         while not bridge.finished and room.connection_state != rtc.ConnectionState.CONN_DISCONNECTED:
             await asyncio.sleep(0.5)
+        publish_state()
         logger.info("lesson finished or room gone; leaving")
 
     # Named agent = explicit dispatch. The join token from scripts/room_token.py

@@ -41,8 +41,11 @@ delta. Detail: [AGENTS_PLAN.md](AGENTS_PLAN.md) §10 (graph) and
   list instead of an introduction.
 - A failed topic switch loses the lesson that was playing.
 - Short utterances remain unreliable at any model size ("hi" → "はい").
-- Rime websocket streaming and word timestamps still not built; the heard
-  cursor is word-approximate.
+- ~~Rime websocket streaming and word timestamps still not built~~ → built
+  2026-09-09 (`voice/tts.py::RimeWS`): persistent `ws3` socket, first audio
+  ~0.4 s, per-word timestamps make the heard cursor exact for English,
+  `clear` on barge-in. Streaming playback also built the same day: the
+  player takes the line on the first chunk and it grows while playing.
 - Time to first beat is still ~9–12 s (Wikipedia + section pick + one localize).
 
 ---

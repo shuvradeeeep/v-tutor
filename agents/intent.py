@@ -210,6 +210,17 @@ def parse_topic_grade(utter: str) -> tuple[str | None, str | None]:
         for ch in text)
     text = re.sub(r"\s+", " ", text).strip(" -'")
     topic = text if text and len(text) > 1 else None
+    if topic and "," in utter:
+        # "machines, electrical machines": the learner corrected themselves
+        # mid-sentence. When the last comma segment contains the earlier one,
+        # it is the refinement they meant; the first was the false start.
+        segs = [s.strip() for s in re.split(r"\s*,\s*", utter) if s.strip()]
+        if len(segs) >= 2:
+            first, _ = parse_topic_grade(segs[0])            # no commas left: no recursion past here
+            last, _ = parse_topic_grade(segs[-1])
+            first_words = set(_norm(first).split()) if first else set()
+            if last and first_words and first_words <= set(_norm(last).split()) and last != topic:
+                topic = last
     return topic, grade
 
 
@@ -370,6 +381,11 @@ def classify_rules(utter: str, *, paused: bool = False) -> Classification | None
     # the one navigation that costs a new lesson, so it should be predictable.
     if (switch_to := parse_topic_switch(text)):
         return Classification("navigate", nav_target={"kind": "topic", "value": switch_to})
+    # "photosynthesis for class 6" said in the middle of a lesson on Yo-Yo Ma is
+    # the onboarding answer again: the learner is telling the tutor what the
+    # lesson should have been. Topic plus class is an unmistakable shape.
+    if (wanted := parse_lesson_request(text)):
+        return Classification("navigate", nav_target={"kind": "topic", "value": wanted})
     m = re.search(r"\b(?:back to|go to|jump to|take me to|the (?:part|section|bit|chapter) "
                   r"(?:about|on|of|where|with))\s+(.+?)[.?!]*$", text)
     if m and not re.fullmatch(r"(?:where we were|the lesson|it)", m.group(1)):
@@ -470,13 +486,18 @@ def is_ask_permission(utter: str) -> bool:
 # is not.
 # --------------------------------------------------------------------------
 
-_LEAD = (r"(?:(?:sorry|sory|oh|ah+|um+|uh+|er+|hmm+|hm+|so|well|okay|ok|hey|please|but|and|no|"
-         r"actually|wait|alright|right|arre|acha|achha)[,.! ]*)*")
+_LEAD = (r"(?:(?:sorry|sory|oh|ah+|um+|uh+|er+|hmm+|hm+|so|well|okay|ok|hey|yo|please|but|and|no|"
+         r"actually|wait|alright|right|arre|acha|achha|bro|dude|yaar)[,.! ]*)*")
 
 _CONFUSION = re.compile(
     rf"^{_LEAD}(?:"
     r"what|what\?|huh|eh|come again|pardon(?: me)?|say (?:that |it )?again|again(?: please)?|"
     r"repeat(?: that| it| the question)?|one more time|once more|"
+    # "ask me the language again", "can you ask that again": a request to the
+    # tutor about the question, not an answer to it. One of these became the
+    # topic "Yo yo, ask me the language again" -> a lesson on Yo-Yo Ma.
+    r"(?:can you |could you |please )?ask(?: me)?(?: the| that| it)?(?: language| question| topic| class)?"
+    r"(?: question)?(?: once)? again|"
     r"what (?:did|do) you (?:say|ask|mean)|what (?:was|is) (?:that|the question)|"
     r"which question|what question|i (?:didn'?t|did not|don'?t|do not|can'?t|cannot|couldn'?t) "
     r"(?:understand|get|catch|hear|follow)(?: that| it| you| the question| anything)?|"
@@ -613,6 +634,77 @@ def parse_topic_switch(utter: str) -> str | None:
     candidate = _TOPIC_WORD_LEAD.sub("", candidate, count=1)
     candidate = _SWITCH_TAIL.sub("", candidate)
     topic, _ = parse_topic_grade(candidate)
+    return topic
+
+
+# The learner stopped mid-thought: "and, um,", "I want to", "what is the".
+# Whisper closes the utterance after 0.5 s of silence, so these arrive as
+# transcripts. Acting on them (a backchannel resumes the lesson over the
+# learner) is worse than waiting a couple of seconds for the rest.
+_TRAILING_INCOMPLETE = re.compile(
+    r"\b(?:and|um+|uh+|er+|erm+|so|like|but|because|the|a|an|to|of|in|on|for|with|i|i'm|im|you|we|"
+    r"can|could|would|please|is|are|was|does|do|did|what|how|why|that|this|my|me|about|it's|its|"
+    r"which|when|where|who|then|also|aur|toh|matlab|woh|yeh|mujhe|kya)$", re.IGNORECASE)
+
+
+_LEADING_FILLERS = re.compile(r"^(?:(?:and|um+|uh+|er+|erm+|so|like|okay|ok|well|hmm+|hm+|yeah|aur|toh)[,.\s]*)+",
+                              re.IGNORECASE)
+
+
+def is_incomplete(utter: str) -> bool:
+    """True when the utterance looks cut off mid-thought ("and, um,", "what is
+    the"). A complete closed-class utterance (a command, a backchannel, a
+    session word) is never incomplete, whatever it ends in."""
+    text = _norm(utter).strip().rstrip(" ,.-…")
+    if not text:
+        return False
+    c = classify_rules(text)
+    if c is not None and c.intent in ("session", "command", "backchannel", "navigate", "meta"):
+        return False
+    return bool(_TRAILING_INCOMPLETE.search(text))
+
+
+def strip_leading_fillers(utter: str) -> str:
+    """'and, um, how many chambers' -> 'how many chambers'. Used when a held
+    fragment is joined with the words that followed it."""
+    out = _LEADING_FILLERS.sub("", utter.strip())
+    return out if out else utter.strip()
+
+
+# Onboarding: the learner wants the language question back, or names a
+# language while being asked for a topic. "Let's switch to the language again"
+# was once taken as the topic (Wikipedia: Bash, the Unix shell).
+_LANGUAGE_STEP = re.compile(
+    r"\blanguage\b|\b(?:speak|talk|teach|explain|answer|reply)\s+(?:to me\s+)?in\s+\w+|"
+    r"\b(?:switch|change)\s+to\s+(?:{langs})\b|\bbhasha\b|भाषा".format(langs=_LANG_NAMES_RX), re.IGNORECASE)
+
+
+def wants_language_step(utter: str) -> bool:
+    return bool(_LANGUAGE_STEP.search(_norm(utter)))
+
+
+def is_questionish(utter: str) -> bool:
+    """Ends in a question mark or opens like a question, in either language."""
+    text = _norm(utter)
+    return text.rstrip().endswith("?") or bool(_QUESTION_START_EN.match(text)) or bool(_QUESTION_HINGLISH.search(text))
+
+
+_QUESTION_LEAD = re.compile(r"^(?:what|why|how|when|where|who|which|is|are|does|do|did|can|could|"
+                            r"kya|kyu|kyun|kaise|kab|kahan|kaun|क्या|क्यों|कैसे|कब|कहाँ|कौन)\b", re.IGNORECASE)
+
+
+def parse_lesson_request(utter: str) -> str | None:
+    """'photosynthesis for class 6' -- a topic AND a class in one breath, and
+    not a question. That is how the learner answered onboarding, so mid-lesson
+    it means 'this is what I wanted', i.e. a new lesson. Returns the topic."""
+    text = _norm(utter)
+    if not text or _QUESTION_LEAD.match(text) or text.rstrip().endswith("?"):
+        return None
+    if re.search(r"\b(?:go|back|jump|take me|part|section|chapter|skip|next|previous)\b", text):
+        return None            # moving inside the lesson, handled by the navigate rules below
+    topic, grade = parse_topic_grade(text)
+    if not grade or not topic or _words(topic) < 1 or _words(topic) > 6:
+        return None
     return topic
 
 

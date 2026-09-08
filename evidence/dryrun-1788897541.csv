@@ -1,0 +1,4 @@
+timestamp,elapsed_ms,session,event,payload
+2026-09-09T01:29:07,6158,dryrun-1788897541,tts,"{""turn"": 0, ""words"": 17, ""synth_ms"": 1, ""audio_s"": 4.89, ""cached"": true}"
+2026-09-09T01:29:07,6158,dryrun-1788897541,speak,"{""turn"": 0, ""kind"": ""system"", ""lang"": ""en"", ""text"": ""Hi! Which language shall we study in? You can say it, or tap it on the screen.""}"
+2026-09-09T01:29:08,7974,dryrun-1788897541,playback_confirmed,"{""turn"": 0}"

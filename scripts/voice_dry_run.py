@@ -93,8 +93,18 @@ async def main() -> None:
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--sapi", action="store_true",
                     help="render the learner with Windows TTS instead of Rime (no key, offline)")
+    # PS full-duplex test: a fixed delay inside the web-search tool, and a way to
+    # interrupt WHILE it runs. Prefix a --say line with "!" and it is spoken
+    # --interrupt-after seconds after the previous line was transcribed, without
+    # waiting for the tutor to finish -- i.e. in the middle of the slow tool call.
+    ap.add_argument("--stress-ms", type=int, default=None,
+                    help="fixed delay injected into every web search (default: STRESS_DELAY_MS from .env)")
+    ap.add_argument("--interrupt-after", type=float, default=1.5,
+                    help='seconds after the previous transcript before a "!"-prefixed line is spoken')
     args = ap.parse_args()
     script = args.say or DEFAULT_SCRIPT
+    barge = [s.startswith("!") for s in script]
+    script = [s.lstrip("!").strip() for s in script]
 
     from livekit import rtc
 
@@ -124,7 +134,9 @@ async def main() -> None:
 
     session = f"dryrun-{int(time.time())}"
     bridge = make_bridge(player, session_id=session, evidence_path=f"{config.EVIDENCE_DIR}/{session}.csv",
-                         on_text=on_text, on_event=on_event)
+                         on_text=on_text, on_event=on_event, stress_delay_ms=args.stress_ms)
+    if bridge.runner.deps.stress_delay_ms:
+        print(f"stress: every web search is delayed by {bridge.runner.deps.stress_delay_ms} ms")
     speech = SpeechInput()
     print("loading Silero + Whisper ...")
     speech.load()
@@ -169,14 +181,20 @@ async def main() -> None:
     await asyncio.to_thread(bridge.wait_idle, 60)
     await silence(0.5)
 
-    for line, pcm in zip(script, clips):
+    for i, (line, pcm) in enumerate(zip(script, clips)):
         n_turns = len(bridge.turns)
-        print(f"\n>>> learner says: {line!r}")
+        interrupting = barge[i]
+        print(f"\n>>> learner says{' (INTERRUPTING mid-turn)' if interrupting else ''}: {line!r}")
         await feed(pcm)
         await silence(args.gap)                            # lets the VAD close the utterance
         deadline = time.perf_counter() + 30
         while len(bridge.turns) == n_turns and time.perf_counter() < deadline:
             await silence(0.1)
+        if i + 1 < len(script) and barge[i + 1]:
+            # Do not wait for the tutor: the next line lands while this turn's
+            # tool call / model call / synthesis is still in flight.
+            await silence(args.interrupt_after)
+            continue
         await asyncio.to_thread(bridge.wait_idle, 90)       # graph done with this turn
         await silence(args.settle)
         if bridge.finished:

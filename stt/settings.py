@@ -72,6 +72,35 @@ WHISPER_LANGUAGE_FALLBACK = _s("WHISPER_LANGUAGE_FALLBACK", "en")
 WHISPER_WARMUP = _b("WHISPER_WARMUP", True)
 
 # ---------------------------------------------------------------------------
+# Which ear: local faster-whisper or Whisper large-v3 on Groq (stt/cloud.py)
+# ---------------------------------------------------------------------------
+# Local `base` int8 is fast (~0.4 s) but mishears the words that matter most:
+# "photosynthesis" -> "Porto's", "Autos"; "English" -> "Fuck."; "class 6" ->
+# "glass 6th". Whisper large-v3-turbo on Groq is ~0.3-0.6 s over the network
+# and gets those right. The local model stays loaded as the fallback when the
+# network call fails.
+#   auto   groq when GROQ_API_KEY is set, else local     (default)
+#   groq   always the cloud model (falls back to local on error)
+#   local  never leave the machine
+STT_PROVIDER = _s("STT_PROVIDER", "auto").strip().lower()
+# large-v3 over the pruned "turbo" decoder: a live browser session on turbo heard
+# "Hindi" as "Henry", "slowly" as "Sloane" and "yes" as "Yes, Lloyd". The full
+# decoder costs ~150 ms more on Groq and is markedly better on short commands.
+STT_CLOUD_MODEL = _s("STT_CLOUD_MODEL", "whisper-large-v3")
+STT_CLOUD_TIMEOUT_S = _f("STT_CLOUD_TIMEOUT_S", 6.0)
+# Whisper conditions on the prompt as if it were the preceding transcript, so
+# it works best as sentences in the register the learner will use, containing
+# the exact words the tutor must not mishear.
+STT_PROMPT = _s("STT_PROMPT",
+                "English. Hindi. Photosynthesis for class six. The heart for class 6. Slower, please. "
+                "Speak slowly. Say that again. Pause. Continue. Go back. Skip this. Stop for today. "
+                "Wait, what does that mean? How many chambers does the heart have? Explain that again.")
+# Whisper invents these from silence and noise ("Thank you.", "Thanks for
+# watching"). A transcript that is nothing but one of them is treated as
+# nothing heard, up to this many seconds of audio.
+HALLUCINATION_MAX_SEC = _f("HALLUCINATION_MAX_SEC", 3.0)
+
+# ---------------------------------------------------------------------------
 # Silero VAD / segmentation (stage 1: is anyone talking at all?)
 # ---------------------------------------------------------------------------
 # A door slam / cough is < 0.2s. Raise towards 0.25 to kill those.

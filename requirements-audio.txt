@@ -12,3 +12,5 @@ livekit-api>=1.0          # scripts/room_token.py mints browser join tokens
 faster-whisper>=1.1
 websockets>=13.0
 sounddevice>=0.5         # `python main.py local`: laptop mic + speakers without LiveKit
+cryptography>=42         # web/server.py --https: self-signed cert so a phone can use its mic
+# aiohttp (web/server.py) comes with livekit-agents.

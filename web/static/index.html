@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0b">
+<title>v-tutor</title>
+<link rel="preconnect" href="https://rsms.me/">
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<section id="join" class="screen join">
+  <div class="join-inner">
+    <div class="brand">v-tutor</div>
+    <h1>A voice tutor you can interrupt.</h1>
+    <form id="join-form" autocomplete="off">
+      <label class="field">
+        <span>Name</span>
+        <input id="identity" autocomplete="name" placeholder="Your name">
+      </label>
+      <label class="field">
+        <span>Room</span>
+        <input id="room" autocapitalize="off" spellcheck="false">
+      </label>
+      <button id="start" class="button" type="submit">Start</button>
+    </form>
+    <p id="join-hint" class="hint"></p>
+  </div>
+</section>
+
+<section id="session" class="screen session hidden">
+  <header class="bar">
+    <div class="brand small">v-tutor</div>
+    <div class="live"><span id="conn" class="dot"></span><span id="provider">Rime</span><span id="stress" class="hidden"></span></div>
+  </header>
+
+  <div class="lesson">
+    <div class="lesson-head">
+      <h2 id="topic">Getting ready</h2>
+      <span id="grade"></span>
+    </div>
+    <div class="track"><div id="bar"></div></div>
+    <div id="sections" class="sections"></div>
+  </div>
+
+  <div class="stage">
+    <div id="orb" class="orb idle"><div class="core"></div></div>
+    <div id="status" class="status">Connecting</div>
+    <div id="metric" class="metric"></div>
+    <div id="lang-chips" class="lang hidden">
+      <button type="button" data-say="English">English</button>
+      <button type="button" data-say="Hindi">हिन्दी</button>
+    </div>
+  </div>
+
+  <main id="feed" class="feed" aria-live="polite"></main>
+
+  <nav class="controls">
+    <button id="mic" class="ctl on" type="button" aria-label="Microphone">
+      <svg viewBox="0 0 24 24"><path d="M12 15a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v5a4 4 0 0 0 4 4Zm7-4a7 7 0 0 1-6 6.93V21h-2v-3.07A7 7 0 0 1 5 11h2a5 5 0 0 0 10 0h2Z"/></svg>
+      <span>Mic</span>
+    </button>
+    <button id="pause" class="ctl" type="button" data-say="pause" data-toggle="continue">
+      <svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zm6 0h4v14h-4z"/></svg>
+      <span>Pause</span>
+    </button>
+    <button class="ctl" type="button" data-say="slower">
+      <svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 1 0 8 8h-2a6 6 0 1 1-6-6V4Zm-1 4h2v4.6l3 1.7-1 1.7-4-2.3V8Z"/></svg>
+      <span>Slower</span>
+    </button>
+    <button class="ctl" type="button" data-say="say that again">
+      <svg viewBox="0 0 24 24"><path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7Z"/></svg>
+      <span>Repeat</span>
+    </button>
+    <button class="ctl end" type="button" data-say="stop for today">
+      <svg viewBox="0 0 24 24"><path d="M7 7h10v10H7z"/></svg>
+      <span>End</span>
+    </button>
+  </nav>
+</section>
+
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

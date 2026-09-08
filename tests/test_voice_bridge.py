@@ -66,7 +66,8 @@ def onboard_manual():
     say(bridge, "the heart for class six")
     # queue: "Give me a moment ...", then the first beat. Step past the wait line.
     cur = player.start_next()
-    assert cur is not None and cur.text.startswith("Give me a moment")
+    # "Okay, the heart, class 6. Give me a moment ..." -- the topic is said back first.
+    assert cur is not None and "Give me a moment" in cur.text
     player.finish_current()
     return bridge, player, spoken, events
 

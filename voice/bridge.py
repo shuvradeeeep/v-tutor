@@ -175,6 +175,9 @@ class VoiceBridge:
         self.half_duplex = config.HALF_DUPLEX if half_duplex is None else half_duplex
         self._suppressed_start = False
         self.suppressed = 0
+        self._held: dict | None = None                 # an incomplete transcript waiting for its second half
+        self._hold_timer: threading.Timer | None = None
+        self.holds = 0
         self._started = threading.Event()              # set once runner.start() has run on the worker
         self.worker = GraphWorker(on_idle=self._maybe_confirm)
         self.player.set_on_drained(self._maybe_confirm)
@@ -205,6 +208,9 @@ class VoiceBridge:
 
     def close(self) -> None:
         self._closed = True
+        with self._lock:
+            if self._hold_timer is not None:
+                self._hold_timer.cancel()
         self.worker.close()
         self.player.close()
 
@@ -310,6 +316,53 @@ class VoiceBridge:
             self.clock.bump()
             self.speaker.stop()
         cur = self.speaker.take_cursor()
+
+        # A held fragment ("and, um,") joins the transcript that followed it.
+        with self._lock:
+            held, self._held = self._held, None
+            if self._hold_timer is not None:
+                self._hold_timer.cancel()
+                self._hold_timer = None
+        holds = 0
+        if held:
+            text = intent.strip_leading_fillers(f"{held['text']} {text}".strip())
+            if cur is None or cur.words_heard is None:
+                cur = held["cursor"]                    # the stop that mattered was the first one
+            lang = lang or held["lang"]
+            t0 = held["t0"] or t0
+            duration_s += held["duration_s"]
+            holds = held["holds"]
+        if (config.FRAGMENT_HOLD_S > 0 and text and holds < config.FRAGMENT_HOLD_MAX
+                and intent.is_incomplete(text)):
+            # Playback is already stopped, so the tutor stays quiet while the
+            # learner finishes the thought. Delivered as-is if nothing follows.
+            self.holds += 1
+            rec = {"text": text, "lang": lang, "prob": round(prob, 2), "vad_s": round(duration_s, 2),
+                   "whisper_ms": round(whisper_ms), "cursor": None, "since_vad_start_ms": None, "held": True}
+            self._emit("transcript", **rec)
+            with self._lock:
+                self._held = {"text": text, "cursor": cur, "lang": lang, "t0": t0, "prob": prob,
+                              "duration_s": duration_s, "whisper_ms": whisper_ms, "holds": holds + 1}
+                self._hold_timer = threading.Timer(config.FRAGMENT_HOLD_S, self._release_hold)
+                self._hold_timer.daemon = True
+                self._hold_timer.start()
+            self._emit("fragment_hold", text=text, seconds=config.FRAGMENT_HOLD_S)
+            return
+        self._dispatch(text, lang, prob, duration_s, whisper_ms, cur, t0)
+
+    def _release_hold(self) -> None:
+        """Nothing followed the fragment: deliver it as it was."""
+        with self._lock:
+            held, self._held = self._held, None
+            self._hold_timer = None
+        if held is None or self._closed:
+            return
+        self._emit("fragment_release", text=held["text"])
+        self._dispatch(held["text"], held["lang"], held["prob"], held["duration_s"], held["whisper_ms"],
+                       held["cursor"], held["t0"])
+
+    def _dispatch(self, text: str, lang: str | None, prob: float, duration_s: float, whisper_ms: float,
+                  cur, t0: float | None) -> None:
         ev: dict = {"type": "user_barge_in", "text": text}
         if lang in config.SUPPORTED_LANGS:
             ev["detected_lang"] = lang

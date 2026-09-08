@@ -297,11 +297,13 @@ since the voice identity will not stay constant across a language switch.
 - `heard_cursor` resolves to word granularity, not phoneme. Cutting mid-word
   rounds down to the last fully-spoken word.
 - The heard-cursor accuracy claim depends on Rime's `word_timestamps` being
-  accurate; we validate them against measured playback duration rather than
-  trusting them outright. The HTTP path returns no timestamps at all, so the
-  cursor is currently derived by spreading words evenly over the clip's
-  duration — accurate to a word or two, which is the granularity the graph
-  rounds to anyway.
+  accurate; they are rescaled to the clip's measured duration rather than
+  trusted outright (they drift up to ~19% at non-default speeds). They arrive
+  with the END of a line over the websocket, so an interruption while a line
+  is still streaming in uses coda's typical pace (0.38 s/word) as the
+  estimate, and the HTTP fallback path has no timestamps at all — in both
+  cases accurate to a word or two, which is the granularity the graph rounds
+  to anyway.
 - **No echo cancellation.** Without headphones the mic hears the tutor. The
   echo guard and half-duplex mode make that survivable, not good: barge-in
   degrades from ~0.2 ms to ~2 s, and a learner who repeats the tutor's own

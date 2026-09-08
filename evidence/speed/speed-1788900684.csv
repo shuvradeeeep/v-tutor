@@ -1,0 +1,10 @@
+variant,bytes,audio_s,http_ms,clip
+timeScaleFactor=0.7,112960,3.53,3028,clementine-tsf-0.7.wav
+timeScaleFactor=1.0,179520,5.61,3180,clementine-tsf-1.0.wav
+timeScaleFactor=1.3,239680,7.49,2963,clementine-tsf-1.3.wav
+speedAlpha=0.7,248000,7.75,2607,
+speedAlpha=1.3,131520,4.11,3151,
+Accept: audio/L16,164160,5.13,2644,
+lang=eng (3-letter),161600,5.05,2611,
+# text: The heart has four chambers. Two upper atria, and two lower ventricles.
+# verdict: HIGHER timeScaleFactor = SLOWER (longer clip)

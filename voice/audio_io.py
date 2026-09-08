@@ -22,6 +22,7 @@ from stt.transcripts import TranscriptLog
 from voice.bridge import VoiceBridge
 
 logger = logging.getLogger("v-tutor.audio")
+_HALLUCINATIONS = {p.strip().lower().strip(" .!,?") for p in settings.HALLUCINATION_PHRASES}
 
 
 class SpeechInput:
@@ -38,26 +39,25 @@ class SpeechInput:
 
     def load(self) -> None:
         if self._transcriber is None:
-            from stt.transcriber import WhisperTranscriber
-            t = time.perf_counter()
-            self._transcriber = WhisperTranscriber(
-                model_size=settings.WHISPER_MODEL_SIZE, device=settings.WHISPER_DEVICE,
-                compute_type=settings.WHISPER_COMPUTE_TYPE, beam_size=settings.WHISPER_BEAM_SIZE,
-                cpu_threads=settings.WHISPER_CPU_THREADS, single_pass=settings.WHISPER_SINGLE_PASS,
-                allowed_languages=settings.WHISPER_ALLOWED_LANGUAGES,
-                language_aliases=settings.WHISPER_LANGUAGE_ALIASES,
-                language_fallback=settings.WHISPER_LANGUAGE_FALLBACK)
-            logger.info("whisper %s loaded in %.1fs", settings.WHISPER_MODEL_SIZE, time.perf_counter() - t)
+            # Local faster-whisper or Whisper large-v3 on Groq, per STT_PROVIDER
+            # (stt/settings.py). Either way the same transcribe(frames) contract.
+            from stt.cloud import describe, make_transcriber
+            self._transcriber = make_transcriber()
             if settings.WHISPER_WARMUP:
                 # load() is called from prewarm / before the tutor speaks, so
                 # the lazy init cost lands here and not on the learner's first
                 # sentence (where it would add ~1s to the barge-in round trip).
                 self._transcriber.warmup()
+            logger.info("ear: %s", describe(self._transcriber))
         if self._segmenter is None:
             from stt.vad import AudioSegmenter
             self._segmenter = AudioSegmenter(min_speech_duration=settings.VAD_MIN_SPEECH_DURATION,
                                              min_silence_duration=settings.VAD_MIN_SILENCE_DURATION,
                                              max_utterance_duration=settings.VAD_MAX_UTTERANCE_DURATION)
+
+    def describe(self) -> str:
+        from stt.cloud import describe
+        return describe(self._transcriber) if self._transcriber is not None else "not loaded"
 
     async def run_frames(self, frames: AsyncIterator, bridge: VoiceBridge, label: str = "mic") -> None:
         self.load()
@@ -76,8 +76,15 @@ class SpeechInput:
         except Exception:  # noqa: BLE001
             logger.exception("whisper failed")
             text, lang, prob, whisper_ms = "", None, 0.0, 0.0
+        norm = text.strip().lower().strip(" .!,?")
         if (text.strip().lower() in settings.SHORT_NOISE_PHRASES
                 and utt.vad_duration_sec < settings.SHORT_NOISE_MAX_SEC):
+            text = ""
+        elif norm in _HALLUCINATIONS and utt.vad_duration_sec < settings.HALLUCINATION_MAX_SEC:
+            # "Thank you." from 2 s of room noise became the answer to "which
+            # language?" in a live session. Nothing a learner says to a tutor
+            # is only one of these phrases, so treat it as silence.
+            logger.info("STT dropped likely hallucination %r (%.1fs)", text, utt.vad_duration_sec)
             text = ""
         total_ms = (time.perf_counter() - utt.end_time) * 1000
         logger.info("STT %.2fs -> %r (%s %.2f, %.0f ms)", utt.vad_duration_sec, text, lang, prob, whisper_ms)

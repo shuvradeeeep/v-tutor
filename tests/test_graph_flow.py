@@ -104,7 +104,8 @@ def test_navigate_by_topic_jumps_to_section(lesson, speaker):
     lesson.barge_in("go back to the part about chambers")
     st = lesson.state
     assert st["lesson_plan"][st["beat_index"]]["section_title"] == "Chambers"
-    assert speaker.lines[-1].text.startswith("Chambers.")
+    # A section change is introduced like a teacher would, not read as a heading.
+    assert speaker.lines[-1].text.startswith("Now, let's look at Chambers.")
 
 
 def test_navigate_prev_next(lesson):

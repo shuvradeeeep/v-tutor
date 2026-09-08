@@ -29,24 +29,85 @@ SAMPLE_RATE = 16000
 BYTES_PER_SAMPLE = 2
 
 
+TYPICAL_SECONDS_PER_WORD = 0.38     # coda at pace 1.0, measured over the evidence CSVs
+
+
 @dataclass
 class PcmItem:
-    pcm: bytes
+    """One spoken line. `pcm` may still be GROWING while it plays: the
+    websocket path enqueues the item on Rime's first chunk and appends the
+    rest as it arrives (streaming playback). `complete` flips when the last
+    chunk is in; until then a player that runs out of bytes waits instead of
+    finishing the item."""
+    pcm: bytes | bytearray
     turn_id: int
     text: str
     n_words: int
     kind: str = "speech"
     played_bytes: int = 0
     seq: int = 0
+    # Seconds at which each word ENDS, from Rime's websocket `timestamps`
+    # message. None on the HTTP path (no timestamps) and for cached clips
+    # rendered before timestamps were stored.
+    word_ends: list[float] | None = None
+    complete: bool = True
+
+    # ---- streaming ----
+    def append(self, chunk: bytes) -> None:
+        if not isinstance(self.pcm, bytearray):
+            self.pcm = bytearray(self.pcm)
+        self.pcm += chunk
+
+    def finish(self, word_ends: list[float] | None = None) -> None:
+        """Last chunk is in. Word ends are pinned to the clip's real length:
+        Rime's timestamp clock and the delivered audio drift by up to ~20% at
+        non-default speeds (measured), while relative positions stay right."""
+        if len(self.pcm) % 2:
+            self.pcm = self.pcm[:-1]
+        if word_ends and word_ends[-1] > 0 and self.duration_s > 0:
+            k = self.duration_s / word_ends[-1]
+            self.word_ends = [e * k for e in word_ends]
+        elif word_ends:
+            self.word_ends = list(word_ends)
+        self.complete = True
+
+    @property
+    def available(self) -> int:
+        """Bytes received but not yet played."""
+        return max(0, len(self.pcm) - self.played_bytes)
+
+    @property
+    def exhausted(self) -> bool:
+        """Every byte that will ever exist has been played."""
+        return self.complete and self.played_bytes >= len(self.pcm)
 
     @property
     def duration_s(self) -> float:
         return len(self.pcm) / (SAMPLE_RATE * BYTES_PER_SAMPLE)
 
     @property
+    def played_s(self) -> float:
+        return self.played_bytes / (SAMPLE_RATE * BYTES_PER_SAMPLE)
+
+    @property
     def words_heard(self) -> int:
+        """Words fully rendered to the device when playback stopped.
+        Exact when Rime gave word timestamps; otherwise words are spread
+        evenly over the clip (accurate to a word or two). While a line is
+        still streaming in and has no timestamps yet, the clip's final length
+        is unknown, so the estimate uses coda's typical pace instead."""
         if not self.pcm or self.n_words == 0:
             return 0
+        if self.word_ends:
+            played = self.played_s
+            heard = sum(1 for e in self.word_ends if e <= played)
+            # Rime tokenises on whitespace like word_count(); if the counts
+            # differ, scale so the cursor still indexes our own word list.
+            if len(self.word_ends) != self.n_words:
+                heard = int(round(heard * self.n_words / len(self.word_ends)))
+            return min(self.n_words, heard)
+        if not self.complete:
+            return min(self.n_words, int(self.played_s / TYPICAL_SECONDS_PER_WORD))
         frac = min(1.0, self.played_bytes / len(self.pcm))
         return int(round(frac * self.n_words))
 
@@ -213,20 +274,22 @@ class LocalPlayer(_QueueMixin):
                         break
                     self._current = self._q.popleft()
                 cur = self._current
-                chunk = cur.pcm[cur.played_bytes:cur.played_bytes + (need - len(out))]
+                chunk = bytes(cur.pcm[cur.played_bytes:cur.played_bytes + (need - len(out))])
                 if not chunk:
+                    if not cur.complete:
+                        break                     # still streaming in: play silence, keep the item
                     self._current = None
                     if not self._q:
                         drained = True
                     continue
                 out += chunk
                 cur.played_bytes += len(chunk)
-                if cur.played_bytes >= len(cur.pcm):
+                if cur.exhausted:
                     self._current = None
                     if not self._q:
                         drained = True
         if len(out) < need:
-            out += bytes(need - len(out))
+            out += bytes(need - len(out))          # underrun or idle: silence, not counted as heard
         outdata[:] = self._to_device(bytes(out), frames)
         if drained:
             self._fire_drained()
@@ -305,7 +368,10 @@ class LiveKitPlayer(_QueueMixin):
                 self._wake.wait(timeout=0.1)
                 self._wake.clear()
                 continue
-            chunk = cur.pcm[cur.played_bytes:cur.played_bytes + frame_bytes]
+            if cur.available < frame_bytes and not cur.complete:
+                time.sleep(0.005)                       # streaming in: wait for a whole frame
+                continue
+            chunk = bytes(cur.pcm[cur.played_bytes:cur.played_bytes + frame_bytes])
             if len(chunk) < frame_bytes:
                 chunk = chunk + bytes(frame_bytes - len(chunk))
             frame = self._rtc.AudioFrame(data=chunk, sample_rate=SAMPLE_RATE, num_channels=1,
@@ -321,7 +387,7 @@ class LiveKitPlayer(_QueueMixin):
                 if self._gen != gen or self._current is not cur:
                     continue                            # flushed while we were capturing
                 cur.played_bytes += frame_bytes
-                if cur.played_bytes >= len(cur.pcm):
+                if cur.exhausted:
                     self._current = None
                     drained = not self._q
             if drained:
@@ -390,7 +456,10 @@ class ScriptedPlayer(_QueueMixin):
         if cur is None:
             return
         with self._lock:
-            cur.played_bytes = int(len(cur.pcm) * min(1.0, n / max(1, cur.n_words)))
+            if cur.word_ends and n < len(cur.word_ends):
+                cur.played_bytes = int(cur.word_ends[n - 1] * SAMPLE_RATE * BYTES_PER_SAMPLE) if n > 0 else 0
+            else:
+                cur.played_bytes = int(len(cur.pcm) * min(1.0, n / max(1, cur.n_words)))
 
     def play_all(self) -> None:
         with self._lock:
@@ -444,8 +513,8 @@ class TimedPlayer(_QueueMixin):
             with self._lock:
                 if self._current is not cur:
                     continue                            # flushed meanwhile
-                cur.played_bytes += step_bytes
-                if cur.played_bytes >= len(cur.pcm):
+                cur.played_bytes += min(step_bytes, cur.available) if not cur.complete else step_bytes
+                if cur.exhausted:
                     self._current = None
                     drained = not self._q
             if drained:
@@ -469,4 +538,4 @@ def pcm_for_words(n_words: int, seconds_per_word: float = 0.4) -> bytes:
 
 
 __all__ = ["PcmItem", "HeardCursor", "Player", "LocalPlayer", "LiveKitPlayer", "ScriptedPlayer",
-           "TimedPlayer", "pcm_for_words", "SAMPLE_RATE", "field"]
+           "TimedPlayer", "pcm_for_words", "SAMPLE_RATE", "TYPICAL_SECONDS_PER_WORD", "field"]

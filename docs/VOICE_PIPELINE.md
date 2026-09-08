@@ -34,7 +34,7 @@ cd d:\v-tutor-folder\v-tutor
 ..\venv\Scripts\python -m pip install -r requirements.txt -r requirements-audio.txt
 ```
 
-`.env` needs: `RIME_API_KEY`, `RIME_SPEAKER_EN` (a coda English voice; `beatty`
+`.env` needs: `RIME_API_KEY`, `RIME_SPEAKER_EN` (a coda English voice; `clementine`
 is set), `LLM_*` (Groq keys are set), and for room mode `LIVEKIT_URL`,
 `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`. Whisper `base` weights download on
 first run (~150 MB) and load in ~10 s.
@@ -54,6 +54,16 @@ lines come back through the real graph and Rime.
 .\.venv\Scripts\python scripts\voice_dry_run.py --sapi            # no RIME_API_KEY: Windows TTS renders the learner
 .\.venv\Scripts\python scripts\voice_dry_run.py --say "English" --say "photosynthesis for class six" `
     --say "what does chlorophyll mean" --say "slower" --say "stop for today"
+```
+
+The PS full-duplex stress test, no microphone, repeatable (see
+[RIME_EVIDENCE.md](../RIME_EVIDENCE.md)): a 3 s delay inside the web-search
+tool, and a `!`-prefixed line that is spoken 1.5 s after the previous transcript
+instead of waiting for the tutor, i.e. while the slow tool call is in flight.
+
+```powershell
+.\.venv\Scripts\python scripts\voice_dry_run.py --stress-ms 3000 --say "English" --say "the heart for class six" `
+    --say "who won the football match yesterday" --say "!how many chambers does the heart have" --say "stop for today"
 ```
 
 `--sapi` (also chosen automatically when `RIME_API_KEY` is unset) renders the
@@ -92,7 +102,43 @@ today"). `Ctrl+C` ends the session.
 Pick devices with `--input-device N --output-device N`
 (`..\venv\Scripts\python -c "import sounddevice; print(sounddevice.query_devices())"`).
 
-## 3. LiveKit room — browser mic, tutor publishes an audio track
+## 3. Web UI — laptop or phone browser
+
+The page in `web/` joins a LiveKit room, plays the tutor's track, and shows
+captions, the lesson plan with progress, the heard cursor at every barge-in,
+every stale result the fences dropped, and the active speech provider
+(`RIME · coda · clementine`, or `FALLBACK`). Buttons (Pause, Slower, Repeat, End,
+language chips) travel down the same path as spoken words: the worker feeds
+them to the bridge as transcripts, so they hit the same intent rules and the
+same evidence CSV.
+
+Terminal 1, the worker; terminal 2, the page server:
+
+```powershell
+.\v-tutor\Scripts\python main.py dev
+.\v-tutor\Scripts\python web\server.py            # http://localhost:8080  (laptop)
+.\v-tutor\Scripts\python web\server.py --https    # https://<lan-ip>:8443  (phone on the same Wi-Fi)
+```
+
+Phones only allow the microphone on HTTPS; `--https` makes a self-signed
+certificate under `.cache/certs` and you accept the warning once. Each visit
+gets its own room (`lesson-xxxx`) because the worker listens to one learner per
+room; a second microphone joining the same room is ignored and shown as a note.
+Phones may route the tutor to the call earpiece once the microphone is open:
+the page asks for the loudspeaker where the browser allows it (Android Chrome)
+and plays through Web Audio, which iOS routes to the speaker more often.
+Earphones are the sure fix and also give the best barge-in. The LiveKit
+secret stays in the server: the page only receives a 3-hour room token from
+`/token`. Speakers are fine, the browser does echo cancellation.
+
+Without a browser, `scripts\ui_smoke.py` joins as the page would, presses the
+buttons, and checks the tutor's replies, events and state snapshots arrive
+(`PASS`/`FAIL`, exit code). Data topics the worker publishes: `tutor` (lines,
+with `kind` lesson/answer/system), `events` (the bridge and graph events the
+page reacts to), `state` (lesson, progress, provider, paused, finished);
+it listens on `control` (`{"say": "pause"}`).
+
+## 3b. LiveKit Meet — no UI, just the room
 
 Terminal 1, the agent worker (joins any room created on `LIVEKIT_URL`):
 
@@ -171,7 +217,7 @@ UI that wants captions.
 | Whisper `base`, int8, beam 5, two encoder passes (before 2026-09-08) | 2.3–2.5 s per utterance | — |
 | Whisper `base`, int8, beam 1, one encoder pass, 8 threads (now) | ~2× faster: 0.43–0.56 s on 1.3–8.6 s clips on an idle laptop, ~1.0–1.3 s while the tutor is under load | `WHISPER_MODEL_SIZE=tiny`, `WHISPER_SINGLE_PASS=0` to revert the fast path |
 | VAD start → transcript delivered | 4–6.5 s before, ~1.5 s faster now (still includes the utterance itself + 0.5 s end-of-speech silence) | `VAD_MIN_SILENCE_DURATION` |
-| Rime coda HTTP, one line | 2–3 s (cached: 0) | model `arcana`/`mistv2` are faster; websocket streaming not built |
+| Rime coda, one line | websocket (default since 2026-09-09): first chunk 0.38–0.47 s, whole line 0.9–4 s by length; HTTP fallback 2.4–3.4 s; cached: 0 | `RIME_TRANSPORT_MODE=http` to force one-shot; playing chunks as they arrive is not built |
 | Groq answer (direct) | 0.4–0.7 s | — |
 | Lesson prep after "give me a moment" | ~12 s (Wikipedia + section pick + simplify) | `PREPARE_UPFRONT_SECTIONS`, see AGENT_GAPS |
 

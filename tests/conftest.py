@@ -13,6 +13,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import config                                            # noqa: E402
+config.PHRASE_VARIETY = False        # tests assert canonical wording (variant 0)
+
 from agents.graph import TutorRunner                     # noqa: E402
 from agents.llm import StubLLM                           # noqa: E402
 from agents.material import sections_from_plaintext      # noqa: E402

@@ -1,0 +1,10 @@
+timestamp,elapsed_ms,session,event,payload
+2026-09-09T00:24:24,3926,local-1788893659,tts,"{""turn"": 0, ""words"": 10, ""synth_ms"": 7, ""audio_s"": 4.25, ""cached"": false}"
+2026-09-09T00:24:24,3926,local-1788893659,speak,"{""turn"": 0, ""kind"": ""system"", ""lang"": ""en"", ""text"": ""Great. What shall we study today, and for which class?""}"
+2026-09-09T00:24:26,5482,local-1788893659,stop,"{""cursor"": {""turn_id"": 0, ""words_heard"": 4, ""text"": ""Great. What shall we study today, and for which class?"", ""was_last_item"": true, ""playing"": true}}"
+2026-09-09T00:24:26,5482,local-1788893659,vad_start,"{""turn"": 1, ""stop_ms"": 0.12, ""cursor"": {""turn_id"": 0, ""words_heard"": 4, ""text"": ""Great. What shall we study today, and for which class?"", ""was_last_item"": true, ""playing"": true}}"
+2026-09-09T00:24:28,7855,local-1788893659,transcript,"{""text"": ""So yeah, I think that was like 2lbz 5v geht 💩 ┐ ┐ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │ │"", ""lang"": ""en"", ""prob"": 0.71, ""vad_s"": 0.88, ""whisper_ms"": 1491, ""cursor"": {""word_index"": 4}, ""since_vad_start_ms"": 2373}"
+2026-09-09T00:24:28,7858,local-1788893659,interrupt,"{""turn"": 1, ""cursor"": null, ""heard"": ""What shall we study today, and for which class?""}"
+2026-09-09T00:24:30,10187,local-1788893659,tts,"{""turn"": 1, ""words"": 8, ""synth_ms"": 2318, ""audio_s"": 2.33, ""cached"": false}"
+2026-09-09T00:24:30,10188,local-1788893659,speak,"{""turn"": 1, ""kind"": ""system"", ""lang"": ""en"", ""text"": ""Got it. And which class is this for?""}"
+2026-09-09T00:24:30,10197,local-1788893659,graph_turn_done,"{""ms"": 2341, ""intent"": null, ""turn"": 1}"

@@ -50,7 +50,10 @@ ECHO_AUTO_HALF_DUPLEX = int(_env("ECHO_AUTO_HALF_DUPLEX", "2"))
 TTS_PROVIDER = _env("TTS_PROVIDER", "auto")
 RIME_AUDIO_FORMAT = "pcm"                                    # no MP3 frame lag on flush
 RIME_SAMPLE_RATE = int(_env("RIME_SAMPLE_RATE", "16000"))    # verified by preflight
-RIME_TRANSPORT = "websocket -> LiveKit WebRTC audio track"
+# What is actually shipped: one HTTPS request per line to RIME_HTTP_ENDPOINT
+# returning raw PCM, played through a LiveKit WebRTC track (room mode) or the
+# laptop's sound device (local mode). The websocket path is not built.
+RIME_TRANSPORT = "HTTPS one-shot (PCM body) -> LiveKit WebRTC audio track | sounddevice"
 
 # Study languages offered at onboarding (the whole lesson + the tutor's voice).
 # Both exist on coda. BCP-47 for synthesis; the catalog uses 3-letter keys.
@@ -82,17 +85,38 @@ LANG_TO_CATALOG = {
     "ar": "ara", "ja": "jpn", "pt": "por", "it": "ita",
 }
 
+# A transcript that looks cut off mid-thought ("and, um,", "I want to") is held
+# this long for the rest of the sentence before the graph sees it, so the tutor
+# does not resume over a learner who paused to think. 0 disables.
+FRAGMENT_HOLD_S = float(_env("FRAGMENT_HOLD_S", "2.0"))
+FRAGMENT_HOLD_MAX = int(_env("FRAGMENT_HOLD_MAX", "2"))     # consecutive holds before delivering anyway
+
+# Fixed phrases (agents/strings.py) with several wordings rotate by turn so
+# fillers and bridges do not repeat verbatim. Tests pin variant 0.
+PHRASE_VARIETY = (_env("PHRASE_VARIETY", "1") or "1").lower() not in ("0", "false", "no")
+
+# Which Rime transport voice/tts.py uses for coda:
+#   ws    persistent websocket (RIME_WS_ENDPOINT): first audio ~0.4 s, exact
+#         word timestamps for the heard cursor, server-side "clear" on barge-in.
+#         Falls back to http per line if the socket fails.
+#   http  one request per line (RIME_HTTP_ENDPOINT): ~2.7 s to audio, no timestamps.
+RIME_TRANSPORT_MODE = (_env("RIME_TRANSPORT_MODE", "ws") or "ws").lower()
+
 # ---------------------------------------------------------------------------
 # Speed control ("slower" / "faster")
 # ---------------------------------------------------------------------------
+# The graph keeps a "pace" in state.speed_alpha with ONE convention: 1.0 is
+# normal, lower is slower, higher is faster (SPEED_LOWER_IS_SLOWER). voice/tts.py
+# converts it to what coda actually takes: `timeScaleFactor` = 1 / pace,
+# range 0.4-2.5, where a HIGHER factor is SLOWER. Measured, not assumed:
+# scripts/speed_check.py rendered the same sentence at 0.7 / 1.0 / 1.3 and got
+# 3.31 s / 5.21 s / 7.39 s of audio (evidence/speed/). `speedAlpha` on coda was
+# inconsistent (0.7 slowed it, 1.3 did nothing), so it is not used.
 SPEED_ALPHA_DEFAULT = 1.0
 SPEED_ALPHA_STEP = 0.15
 SPEED_ALPHA_MIN = 0.6
 SPEED_ALPHA_MAX = 1.5
-# Trap #1 in ARCHITECTURE.md: the direction of speed_alpha is INVERTED between
-# mist/mistv2 (lower = faster) and mistv3/arcana (lower = slower). Coda is
-# undocumented. Phase 0 verifies this by ear and commits the clips; until then
-# this flag is the single place to flip it.
+TIME_SCALE_MIN, TIME_SCALE_MAX = 0.4, 2.5
 SPEED_LOWER_IS_SLOWER = (_env("SPEED_LOWER_IS_SLOWER", "true") or "true").lower() == "true"
 
 # ---------------------------------------------------------------------------

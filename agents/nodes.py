@@ -73,7 +73,7 @@ class TutorNodes:
         if gf is None:
             return
         lang = self._lang(state)
-        text, speaker = t(lang, key), config.LANG_SPEAKER.get(lang) or state.get("speaker") or ""
+        text, speaker = self._T(state, key), config.LANG_SPEAKER.get(lang) or state.get("speaker") or ""
         speed, turn = state.get("speed_alpha", config.SPEED_ALPHA_DEFAULT), state.get("born_turn_id", 0)
 
         def say() -> None:
@@ -85,7 +85,11 @@ class TutorNodes:
         return state.get("active_lang") or "en"
 
     def _T(self, state: dict, key: str, **fmt: Any) -> str:
-        return t(self._lang(state), key, **fmt)
+        """A fixed phrase in the study language. Phrases with several variants
+        rotate by turn, so the tutor does not say the identical filler or
+        bridge twenty times in a lesson. Off (always variant 0) in tests."""
+        variant = int(state.get("turn_id") or 0) if config.PHRASE_VARIETY else 0
+        return t(self._lang(state), key, variant=variant, **fmt)
 
     @staticmethod
     def _lang_name(code: str) -> str:
@@ -213,6 +217,13 @@ class TutorNodes:
             return {"answer": t("en", "ask_language")}
         if (q := self._onboarding_interrupt(state, utter, t("en", "ask_language"))):
             return q
+        named = intent_mod._lang_mentioned(utter.lower())
+        if not named and (intent_mod.is_questionish(utter) or intent_mod._words(utter) > 4):
+            # "Can you ask me again which language do you want me to study in?"
+            # is spoken in English but is not the answer "English". Without a
+            # language name, only a short reply is taken by detected language.
+            self.d.emit("onboarding_reask", utterance=utter[:80], step="language")
+            return {"answer": t("en", "ask_language"), "user_utterance": None}
         lang = intent_mod.parse_language(utter, state.get("detected_lang"), config.SUPPORTED_LANGS)
         if not lang:
             named = intent_mod._lang_mentioned(utter.lower())
@@ -235,6 +246,17 @@ class TutorNodes:
         utter = (state.get("user_utterance") or "").strip()
         if not utter:
             return {"answer": self._T(state, "ask_source")}
+        # "Ask me the language again" / "speak in Hindi" while being asked for
+        # a topic: go back to the language question. A named, supported language
+        # is taken on the spot; anything else re-asks.
+        if intent_mod.wants_language_step(utter):
+            named = intent_mod._lang_mentioned(utter.lower())
+            self.d.emit("onboarding_reask", utterance=utter[:80], step="language")
+            if named in config.SUPPORTED_LANGS:
+                return {"active_lang": named, "speaker": config.LANG_SPEAKER[named],
+                        "answer": t(named, "ask_source"), "user_utterance": None,
+                        "transcript": [{"role": "system", "text": f"language={named}"}]}
+            return {"onboarding_step": "language", "answer": t("en", "ask_language"), "user_utterance": None}
         # Re-ask whichever question is actually outstanding: the topic, or the
         # class if the topic is already known.
         pending = "ask_grade" if (state.get("topic") and not state.get("grade")) else "ask_source"
@@ -254,7 +276,10 @@ class TutorNodes:
             # tutor taught a lesson on plastic.
             g = intent_mod.parse_grade_only(utter) or intent_mod.grade_number(grade)
             if g:
-                topic, grade = state["topic"], f"class {g}"
+                # "photosynthesis for class 6" in reply to "which class?" restates
+                # the whole request: the topic in it replaces a misheard one.
+                restated = topic if (grade and topic and intent_mod._words(topic) >= 1) else None
+                topic, grade = restated or state["topic"], f"class {g}"
             elif corrected:
                 topic, grade = corrected, None        # a deliberate topic change is still allowed
             else:
@@ -276,7 +301,11 @@ class TutorNodes:
         if not grade and asks < 1:
             return {"topic": topic, "answer": self._T(state, "ask_grade"), "source_asks": asks + 1,
                     "user_utterance": None}
-        return _merge(self._say(state, self._T(state, "prepare_wait"), kind="system"),
+        # Say the topic back before building the lesson. A misheard topic
+        # ("Porto's" for photosynthesis) is caught here by the learner, ten
+        # seconds before a wrong article would otherwise be taught.
+        wait = self._T(state, "prepare_wait_topic", topic=topic, grade=f", {grade}" if grade else "")
+        return _merge(self._say(state, wait, kind="system"),
                       {"source_kind": "topic", "topic": topic, "grade": grade, "answer": None,
                        "user_utterance": None, "onboarding_step": "done"})
 
@@ -311,8 +340,18 @@ class TutorNodes:
                 "source_title": sections[0]["title"] if sections else topic, "preface": preface}
 
     # ---- localisation: translate to the study language and/or simplify to grade
-    EAR_RULES = ("Write for the ear: short sentences, plain words, no lists, no markdown, "
-                 "no symbols or abbreviations, spell out units, one idea per sentence.")
+    # Rime's prompting guide, condensed: the voice has no SSML or emotion tags,
+    # so wording and punctuation ARE the delivery. Contractions and the odd
+    # "well," or "so," make it sound like a person; punctuation sets the
+    # rhythm; numbers and units can be left as digits (Rime normalises them).
+    EAR_RULES = ("Write for the ear, not the page: sentences under 20 words, plain words, one idea per "
+                 "sentence. Talk like a real teacher, not a textbook: use contractions (it's, that's, "
+                 "you'll), and now and then open with a short natural reaction such as 'Good question.', "
+                 "'Right,' or 'Ah, okay.' -- not every time, and never more than one. Let punctuation do "
+                 "the acting: a comma is a breath, a full stop is a landing, a question mark lifts the "
+                 "voice; use an exclamation mark only when a person genuinely would. No lists, no "
+                 "markdown, no symbols, no bracketed asides, no abbreviations. Digits and units like "
+                 "72 beats per minute or 37 degrees Celsius are fine as written.")
 
     def _needs_localize(self, state: dict) -> bool:
         return (state.get("source_lang") or "en") != self._lang(state) or bool(state.get("grade"))
@@ -321,10 +360,14 @@ class TutorNodes:
         """One model call for one section. Returns None if the model is unavailable
         or still returns the wrong line count after a retry -- callers then keep
         the original text, so a bad model answer never loses lesson content."""
-        system = (f"You rewrite lesson sentences to be read aloud to a {grade or 'school'} student. "
-                  f"Output language: {config.LANG_NAMES.get(dst, dst)}. Keep every fact and number. "
-                  f"{self.EAR_RULES} Return exactly one numbered line per input line, same numbering, "
-                  "nothing else.")
+        system = (f"You are a warm, clear tutor speaking aloud to a {grade or 'school'} student, one to one. "
+                  "The input lines are encyclopedia sentences. Rewrite each one the way you would actually "
+                  "say it in class: conversational, concrete, one idea per sentence, plain words a "
+                  f"{grade or 'school'} student knows. When a hard word is unavoidable, add its meaning in a "
+                  "few plain words in the same sentence. Keep every fact and number; drop nothing, add no "
+                  "new facts. Never say 'this article', 'the text', 'as mentioned', or read out citations. "
+                  f"Output language: {config.LANG_NAMES.get(dst, dst)}. {self.EAR_RULES} "
+                  "Return exactly one numbered line per input line, same numbering, nothing else.")
         numbered = "\n".join(f"{k + 1}. {x}" for k, x in enumerate(sents))
         user = numbered
         # A whole section needs a bigger output budget than an answer, and it
@@ -482,8 +525,16 @@ class TutorNodes:
         if state.get("preface"):
             prefix_parts.append(state["preface"])
         new_section = idx == 0 or plan[idx - 1]["section_id"] != beat["section_id"]
-        if new_section and start == 0 and beat.get("section_title"):
-            prefix_parts.append(f"{beat['section_title'].rstrip('.')}.")
+        title = (beat.get("section_title") or "").rstrip(".")
+        if new_section and start == 0 and title:
+            # A heading read out bare ("Early life and education.") sounds like
+            # a document, not a teacher. The first section's title is usually
+            # the article name the intro line has just said, so skip it there.
+            generic = title.lower() in {"overview", "introduction", "intro", "summary", "background",
+                                        "description", "general", "generalities", "definition", "basics",
+                                        "terminology", "etymology", "परिचय", "सारांश"}
+            if not generic and not (idx == 0 and title.lower() == (state.get("source_title") or "").rstrip(".").lower()):
+                prefix_parts.append(self._T(state, "section_intro", title=title))
         prefix = " ".join(prefix_parts)
         body = " ".join(beat["sentences"][start:])
         said = self._say(state, f"{prefix} {body}".strip(), kind="lesson")

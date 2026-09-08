@@ -64,6 +64,22 @@ Three things bought that:
 "classics"/"Plastics", "hi" → "はい". Use `WHISPER_MODEL_SIZE=small` for
 anything that matters; it is still faster than `base` was before this work.
 
+### The default ear is now Whisper large-v3-turbo on Groq (2026-09-09)
+
+A live session with a laptop mic showed what `base` does to the words a lesson
+hangs on: "photosynthesis for class 6" came back as "Porto's & This is for
+Class 6th" and "Autos and this is for last 6th", "English" as "Fuck.", and
+"ask me the language again" as a topic that Wikipedia resolved to Yo-Yo Ma.
+Local `small` fixes some of it at ~1.8 s. `whisper-large-v3-turbo` on Groq
+fixes it at 0.3–0.6 s over a normal connection, so `stt/cloud.py` is the
+default whenever `GROQ_API_KEY` is set (`STT_PROVIDER=auto`). Every request
+carries a vocabulary hint (`STT_PROMPT`) with the words learners actually say
+to a tutor. The local model stays loaded and answers any utterance whose
+network call fails or times out (`STT_CLOUD_TIMEOUT_S`, 6 s), so a dropped
+connection degrades to `base`, never to silence. `STT_PROVIDER=local` keeps
+audio on the machine. A/B on eight Rime-rendered learner lines: same latency
+band (290–560 ms both), cloud fixed the one line `base` misheard.
+
 ### Language handling
 
 Spoken Hindi is acoustically almost identical to Urdu, and Whisper regularly
@@ -221,6 +237,17 @@ Stop Oil*. Three guards run first (`agents/nodes.py::_onboarding_interrupt`):
 
 All three match the **whole** utterance, so "explain photosynthesis" is still a
 topic. Re-asking does not consume the turn or count as a failed attempt.
+Confusion now also covers requests *about* the question ("ask me the language
+again", "can you ask that again"), after one of them became a lesson on Yo-Yo
+Ma. And the tutor says the topic back before building anything ("Okay,
+photosynthesis, class 6. Give me a moment..."), so a misheard topic is caught
+by the learner ten seconds before the wrong article is taught.
+
+**Topic plus class, mid-lesson, is a new lesson.** "photosynthesis for class
+6" said while the tutor is teaching something else is the onboarding answer
+again; it now routes to `navigate/topic` (a whole new lesson) instead of being
+answered as a question about the current one. Questions ("is this for class
+6?") and in-lesson navigation ("the part about valves") are excluded.
 
 While the tutor is asking *"which class?"*, only a class answers it. A non-class
 reply used to overwrite the topic, so a misheard "class six" → "Plastics"
