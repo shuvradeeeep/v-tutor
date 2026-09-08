@@ -134,17 +134,76 @@ class LocalPlayer(_QueueMixin):
         import sounddevice as sd
         self._sd = sd
         self._closed = False
-        self._stream = sd.RawOutputStream(
-            samplerate=SAMPLE_RATE, channels=1, dtype="int16", device=device,
-            blocksize=int(SAMPLE_RATE * block_ms / 1000), callback=self._callback,
-        )
+        self._block_ms = block_ms
+        self._rate = SAMPLE_RATE          # what the device actually runs at
+        self._channels = 1
+        self._stream = self._open(device)
         self._stream.start()
+
+    # ---- opening the device -------------------------------------------------
+    # 16 kHz mono int16 is what the tutor produces, and plenty of Windows
+    # drivers refuse exactly that: MME does not resample, so a card that only
+    # accepts its native 48 kHz stereo fails with
+    #   PortAudioError: Unanticipated host error [PaErrorCode -9999] [MME error 1]
+    # before a single frame is played. Rather than die, try progressively less
+    # demanding configurations and resample in the callback if we have to.
+    def _candidates(self, device: int | str | None) -> list[dict]:
+        sd = self._sd
+        block = int(SAMPLE_RATE * self._block_ms / 1000)
+        tries: list[dict] = [
+            {"device": device, "samplerate": SAMPLE_RATE, "channels": 1, "blocksize": block},
+            # Let PortAudio pick the buffer size: some drivers reject 320 frames.
+            {"device": device, "samplerate": SAMPLE_RATE, "channels": 1, "blocksize": 0},
+        ]
+        native = None
+        try:
+            info = sd.query_devices(device if device is not None else sd.default.device[1], "output")
+            native = int(info["default_samplerate"])
+            max_ch = int(info["max_output_channels"])
+        except Exception:  # noqa: BLE001
+            max_ch = 2
+        if native and native != SAMPLE_RATE:
+            # The device's own rate, mono then stereo. We upsample to match.
+            tries.append({"device": device, "samplerate": native, "channels": 1, "blocksize": 0})
+            if max_ch >= 2:
+                tries.append({"device": device, "samplerate": native, "channels": 2, "blocksize": 0})
+        if device is not None:
+            # Explicit device is unusable: fall back to the system default.
+            tries.append({"device": None, "samplerate": SAMPLE_RATE, "channels": 1, "blocksize": 0})
+        return tries
+
+    def _open(self, device: int | str | None):
+        errors: list[str] = []
+        for cfg in self._candidates(device):
+            try:
+                stream = self._sd.RawOutputStream(
+                    dtype="int16", callback=self._callback, **cfg)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"  {cfg} -> {type(exc).__name__}: {str(exc).splitlines()[0]}")
+                continue
+            self._rate = cfg["samplerate"]
+            self._channels = cfg["channels"]
+            if (self._rate, self._channels) != (SAMPLE_RATE, 1):
+                logger.warning("audio device would not take %d Hz mono; running at %d Hz, "
+                               "%d channel(s) and resampling",
+                               SAMPLE_RATE, self._rate, self._channels)
+            return stream
+        raise RuntimeError(
+            "could not open any audio output device. Tried:\n" + "\n".join(errors) +
+            "\n\nPick a working one: python scripts/audio_check.py --play --all, then pass"
+            " --output-device N. To run with no audio at all: TTS_PROVIDER=silent."
+        )
 
     def enqueue(self, item: PcmItem) -> None:
         self._push(item)
 
     def _callback(self, outdata, frames, time_info, status) -> None:  # noqa: ARG002
-        need = frames * BYTES_PER_SAMPLE
+        # `frames` is in DEVICE frames. Pull the matching number of source
+        # frames (16 kHz mono) so played_bytes -- and therefore the heard
+        # cursor -- keeps counting the tutor's own audio, not the card's.
+        ratio = self._rate / SAMPLE_RATE
+        src_frames = frames if ratio == 1 else max(1, int(round(frames / ratio)))
+        need = src_frames * BYTES_PER_SAMPLE
         out = bytearray()
         drained = False
         with self._lock:
@@ -168,9 +227,28 @@ class LocalPlayer(_QueueMixin):
                         drained = True
         if len(out) < need:
             out += bytes(need - len(out))
-        outdata[:] = bytes(out)
+        outdata[:] = self._to_device(bytes(out), frames)
         if drained:
             self._fire_drained()
+
+    def _to_device(self, pcm: bytes, frames: int) -> bytes:
+        """
+        16 kHz mono -> whatever the card agreed to. Only runs on the fallback
+        path. Nearest-sample upsampling: a zero-order hold sounds slightly
+        brighter than a filtered resample, which is a fair price for a tutor
+        that speaks at all on a driver that refused 16 kHz.
+        """
+        if (self._rate, self._channels) == (SAMPLE_RATE, 1):
+            return pcm
+        import numpy as np
+        mono = np.frombuffer(pcm, dtype=np.int16)
+        if mono.size == 0:
+            return bytes(frames * BYTES_PER_SAMPLE * self._channels)
+        idx = np.minimum((np.arange(frames) * SAMPLE_RATE) // self._rate, mono.size - 1)
+        out = mono[idx]
+        if self._channels > 1:
+            out = np.repeat(out, self._channels)
+        return out.tobytes()
 
     def flush(self) -> HeardCursor:
         with self._lock:
