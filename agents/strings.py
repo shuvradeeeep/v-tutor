@@ -38,6 +38,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "lesson_lang_unsupported": "I can explain things in that language, but I can only teach the whole lesson in {langs}.",
         "nav_not_found": "I couldn't find a part about that. Let's carry on.",
         "going_to": "Going to the part about {title}.",
+        "switch_topic": "Okay, let's switch to {title}. Give me a moment while I get it ready.",
         # ---- answers ----
         "from_notes": "From the notes:",
         "from_web": "I looked that up online.",
@@ -71,6 +72,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "lang_switched": "ठीक है, अब से मैं हिंदी में पढ़ाऊँगी।",
         "lesson_lang_unsupported": "मैं उस भाषा में समझा सकती हूँ, पर पूरा पाठ केवल {langs} में पढ़ा सकती हूँ।",
         "nav_not_found": "उस विषय का हिस्सा मुझे नहीं मिला। चलिए आगे बढ़ते हैं।",
+        "switch_topic": "ठीक है, चलिए {title} पर चलते हैं। एक पल दीजिए, मैं तैयार करती हूँ।",
         "going_to": "{title} वाले हिस्से पर चलते हैं।",
         "from_notes": "नोट्स के अनुसार:",
         "from_web": "मैंने यह ऑनलाइन देखा।",

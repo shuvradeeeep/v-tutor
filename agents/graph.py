@@ -96,7 +96,8 @@ def build_graph(deps: Deps, checkpointer: Any | None = None):
         "quit": END,
     })
     g.add_conditional_edges("find_section", n.route_nav,
-                            {"found": "teach_step", "not_found": "resume_controller"})
+                            {"found": "teach_step", "not_found": "resume_controller",
+                             "switch": "fetch_material"})   # "I wanted respiration, not reproduction"
     # Not in the notes: ask the strong model first (trivial / general-knowledge
     # questions need no search); it says LOOKUP when the web is really needed.
     g.add_conditional_edges("qa_retrieve", n.route_retrieval,

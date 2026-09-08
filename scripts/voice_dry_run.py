@@ -118,7 +118,8 @@ async def main() -> None:
 
     def on_event(name: str, p: dict) -> None:
         if not args.quiet and name in {"vad_start", "transcript", "intent", "retrieve", "answer_mode",
-                                       "tts_drop_stale", "fence_drop", "playback_confirmed", "graph_turn_done"}:
+                                       "tts_drop_stale", "fence_drop", "playback_confirmed",
+                                       "graph_turn_done", "onboarding_reask"}:
             print(f"     . {time.perf_counter() - t0:6.2f}s {name} {p}")
 
     session = f"dryrun-{int(time.time())}"

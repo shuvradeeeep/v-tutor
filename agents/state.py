@@ -93,6 +93,7 @@ class TutorState(TypedDict, total=False):
     command_arg: str | None          # e.g. target language for switch_lesson_lang
     session_cmd: SessionCmd | None
     nav_target: dict | None          # {"kind": prev|next|index|topic, "value": ...}
+    topic_switch: bool               # navigate meant "teach a different topic", not "jump"
     queued_request: str | None       # second clause of "do A and B"
     recent_exchanges: list[dict]     # last N {"q":..., "a":...}
     retrieved: list[dict]            # [{"text", "section_id", "section_title", "score", "source"}]
@@ -135,7 +136,7 @@ def initial_state(session_id: str, pdf_paths: list[str] | None = None,
         spoken_offset=0, spoken_start_sentence=0, preface=None,
         event=None, user_utterance=None, detected_lang=None, intent=None,
         command=None, command_arg=None, session_cmd=None, nav_target=None,
-        queued_request=None,
+        topic_switch=False, queued_request=None,
         recent_exchanges=[], retrieved=[], retrieval_score=0.0, answer_mode=None, web_aborted=False,
         answer=None,
         reply_lang=None, clarify_count=0, stale_drops=0,

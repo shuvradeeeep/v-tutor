@@ -135,6 +135,9 @@ _FILLER_EN = re.compile(
     r"\b(?:i want to study|i want to learn|i'd like to study|i would like to study|"
     r"let's study|lets study|let us study|can we study|can we do|we can do|"
     r"teach me|teach|study|learn|about|the topic is|topic is|topic|please|"
+    # Spoken topics arrive wrapped in a request ("explain photosynthesis",
+    # "what is the heart"). Left in, they go to Wikipedia verbatim and miss.
+    r"explain|tell me|start with|what is|what are|what's|who is|who was|"
     r"today|for|i|want|to|do|the chapter on|chapter on|chapter|lesson on|lesson)\b",
     re.IGNORECASE)
 _FILLER_HI = ["मुझे", "पढ़ना चाहता हूँ", "पढ़ना चाहती हूँ", "पढ़ना है", "पढ़ाओ", "पढ़ाइए",
@@ -244,6 +247,10 @@ def classify_rules(utter: str, *, paused: bool = False) -> Classification | None
         return Classification("command", command="slower")
 
     # ---- navigate --------------------------------------------------------
+    # A whole-topic change is decided here rather than left to the LLM: it is
+    # the one navigation that costs a new lesson, so it should be predictable.
+    if (switch_to := parse_topic_switch(text)):
+        return Classification("navigate", nav_target={"kind": "topic", "value": switch_to})
     m = re.search(r"\b(?:back to|go to|jump to|take me to|the (?:part|section|bit|chapter) "
                   r"(?:about|on|of|where|with))\s+(.+?)[.?!]*$", text)
     if m and not re.fullmatch(r"(?:where we were|the lesson|it)", m.group(1)):
@@ -324,6 +331,113 @@ def is_ask_permission(utter: str) -> bool:
     """'I have a question' carries no question yet. The tutor should say
     'go ahead' and wait, not apologise for not catching it."""
     return bool(_ASK_PERMISSION.match(_norm(utter)))
+
+
+# --------------------------------------------------------------------------
+# onboarding: utterances that are NOT an answer
+#
+# Before the lesson exists there is no intent classification -- whatever the
+# learner says is taken as the language or the topic. That turned "hi" into a
+# topic (the tutor then asked which class it was for), "I didn't understand
+# the question" into a Wikipedia lookup, and "just stop" into a lesson about
+# Just Stop Oil. These three tests catch that, and they deliberately match the
+# WHOLE utterance: "explain photosynthesis" is a topic, "explain that again"
+# is not.
+# --------------------------------------------------------------------------
+
+_LEAD = (r"(?:(?:sorry|sory|oh|ah+|um+|uh+|er+|hmm+|hm+|so|well|okay|ok|hey|please|but|and|no|"
+         r"actually|wait|alright|right|arre|acha|achha)[,.! ]*)*")
+
+_CONFUSION = re.compile(
+    rf"^{_LEAD}(?:"
+    r"what|what\?|huh|eh|come again|pardon(?: me)?|say (?:that |it )?again|again(?: please)?|"
+    r"repeat(?: that| it| the question)?|one more time|once more|"
+    r"what (?:did|do) you (?:say|ask|mean)|what (?:was|is) (?:that|the question)|"
+    r"which question|what question|i (?:didn'?t|did not|don'?t|do not|can'?t|cannot|couldn'?t) "
+    r"(?:understand|get|catch|hear|follow)(?: that| it| you| the question| anything)?|"
+    r"(?:that was |it'?s |its )?not clear|unclear|no idea|"
+    r"kya (?:bola|kaha|poocha|pucha|bole)|samajh (?:nahi|nahin|na) (?:aaya|aya|aayi)|"
+    r"phir se (?:bolo|boliye|kahiye|batao)|dobara (?:bolo|boliye|batao)|sunai nahi diya"
+    r")[?!. ]*$", re.IGNORECASE)
+_CONFUSION_HI = ("समझ नहीं आया", "समझ में नहीं आया", "क्या बोला", "क्या कहा", "क्या पूछा",
+                 "फिर से बोलो", "फिर से कहिए", "दोबारा बोलो", "सुनाई नहीं दिया")
+
+_GREETING = re.compile(
+    rf"^{_LEAD}(?:hi|hii+|hey|hello+|helo|yo|namaste|namaskar|salaam|salam|"
+    r"good (?:morning|afternoon|evening)|how are you|kaise ho|kaisi ho|"
+    r"hi there|hello there)[,.! ]*(?:there|sir|maam|ma'?am|teacher|dude|bro)?[?!. ]*$",
+    re.IGNORECASE)
+_GREETING_HI = ("नमस्ते", "नमस्कार", "कैसे हो", "कैसी हो")
+
+# "stop for today" is already a quit rule; this catches the bare forms that
+# only make sense as "end this" when no lesson has started yet.
+_STOP_REQUEST = re.compile(
+    rf"^{_LEAD}(?:just )?(?:stop|stop it|stop this|stop please|quit|cancel|exit|"
+    r"never mind|nevermind|forget it|leave it|enough|bas|bas karo|band karo|rehne do)"
+    r"[,.! ]*(?:please|now|yaar)?[?!. ]*$", re.IGNORECASE)
+_STOP_REQUEST_HI = ("बंद करो", "रहने दो", "बस करो", "छोड़ो")
+
+
+def is_confusion(utter: str) -> bool:
+    """The learner did not hear or did not understand the question itself."""
+    text = _norm(utter)
+    return bool(_CONFUSION.match(text)) or _hi(text, *_CONFUSION_HI)
+
+
+def is_greeting(utter: str) -> bool:
+    """'hi' is not a topic."""
+    text = _norm(utter)
+    return bool(_GREETING.match(text)) or _hi(text, *_GREETING_HI)
+
+
+def is_stop_request(utter: str) -> bool:
+    """Bare 'stop' / 'never mind' -- during onboarding this means quit, not pause."""
+    text = _norm(utter)
+    return bool(_STOP_REQUEST.match(text)) or _hi(text, *_STOP_REQUEST_HI)
+
+
+# "go to the part about valves" navigates inside the lesson; "I wanted
+# respiration, not reproduction" asks for a different lesson entirely. Both
+# look like navigate/topic, so the wording is what tells them apart -- and the
+# test has to be narrow: "I want to learn more about valves" is NOT a switch.
+_SWITCH_MARKER = re.compile(
+    r"\binstead\b|\b(?:change|switch)\s+(?:the\s+)?(?:topic|lesson|subject|chapter)\b|"
+    r"\b(?:change|switch)\s+to\b|\b(?:different|another|new)\s+(?:topic|lesson|subject|chapter)\b|"
+    r"\b(?:topic|lesson)\s+badal|\bbadal\s+do\b|\bdusra\s+(?:topic|chapter)\b", re.IGNORECASE)
+# "I wanted X, not Y" -- the tutor misheard the topic and is teaching the wrong one.
+_SWITCH_CORRECTION = re.compile(
+    r"\bi\s+(?:wanted|want|meant|asked for|said)\b.*?\bnot\b|"
+    r"\bnot\s+(?:this|that)\b.*\bi\s+(?:wanted|want|meant)\b", re.IGNORECASE)
+_TOPIC_SWITCH_HI = ("बदल दो", "टॉपिक बदल", "दूसरा विषय", "यह नहीं", "ये नहीं", "की जगह")
+
+# Everything in front of the topic once the learner has asked to switch.
+_SWITCH_LEAD = re.compile(
+    rf"^{_LEAD}(?:"
+    r"i\s+(?:wanted|want|meant|asked for|said)\s*(?:to\s*)?(?:learn|study|do|hear)?\s*(?:about\s*)?|"
+    r"let'?s\s+(?:do|study|learn)\s*|teach\s+me\s*|"
+    r"(?:change|switch)\s*(?:the\s*)?(?:topic|lesson|subject|chapter)?\s*(?:to|into)\s*"
+    r")?", re.IGNORECASE)
+
+
+def is_topic_switch(utter: str) -> bool:
+    """The learner wants a different lesson, not a different part of this one."""
+    text = _norm(utter)
+    return bool(_SWITCH_MARKER.search(text) or _SWITCH_CORRECTION.search(text)) \
+        or _hi(text, *_TOPIC_SWITCH_HI)
+
+
+def parse_topic_switch(utter: str) -> str | None:
+    """The topic they actually want. None when this is not a switch request."""
+    text = _norm(utter)
+    if not is_topic_switch(text):
+        return None
+    # "X not Y" / "X instead of Y" / "X instead": the wanted topic comes first.
+    m = re.match(r"^(.*?)\s+(?:not|instead of|and not|rather than)\s+\S+", text) \
+        or re.match(r"^(.*?)\s+instead\b", text)
+    candidate = m.group(1) if m else text
+    candidate = _SWITCH_LEAD.sub("", candidate, count=1)
+    topic, _ = parse_topic_grade(candidate)
+    return topic
 
 
 def parse_llm_json(text: str) -> Classification | None:

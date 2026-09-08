@@ -29,6 +29,9 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
+import re
+from collections import deque
+
 import config
 from agents import llm
 from agents.evidence import EvidenceWriter
@@ -42,6 +45,36 @@ from voice.player import Player
 from voice.tts import RimeHTTP, RimeSpeaker
 
 logger = logging.getLogger("v-tutor.voice")
+
+
+# --------------------------------------------------------------------------
+# Self-echo guard
+#
+# There is no acoustic echo cancellation on the local path: without headphones
+# the mic hears the tutor, Whisper transcribes it, and the tutor answers its
+# own voice. A real session degenerated in four turns -- "Let me check that."
+# came back as "Check that.", "I'm not sure." as "sure." -- and the tutor
+# ended up teaching an article about a musician called Dean Blunt.
+#
+# A transcript that is a run of words the tutor just said is treated as
+# nothing heard. The bridge already delivers an empty transcript as a
+# backchannel, so the lesson resumes instead of derailing. Barge-in still
+# works: the stop happened on VAD start, and anything the tutor did not just
+# say passes through untouched.
+# --------------------------------------------------------------------------
+
+def _words(text: str) -> list[str]:
+    return re.findall(r"[^\W_]+", (text or "").lower(), re.UNICODE)
+
+
+def looks_like_echo(heard: str, spoken: str) -> bool:
+    """True when every word heard appears, in order and adjacent, in `spoken`."""
+    h, s = _words(heard), _words(spoken)
+    if not h or len(h) > len(s):
+        return False
+    if len(h) == 1 and len(h[0]) < 4:
+        return False              # "a", "is" -- too common to blame on the speaker
+    return any(s[i:i + len(h)] == h for i in range(len(s) - len(h) + 1))
 
 
 class GraphWorker:
@@ -100,7 +133,8 @@ class GraphWorker:
 
 class VoiceBridge:
     def __init__(self, runner: TutorRunner, clock: TurnClock, speaker: RimeSpeaker, player: Player,
-                 on_event: Callable[[str, dict], None] | None = None) -> None:
+                 on_event: Callable[[str, dict], None] | None = None,
+                 half_duplex: bool | None = None) -> None:
         self.runner = runner
         self.clock = clock
         self.speaker = speaker
@@ -112,6 +146,14 @@ class VoiceBridge:
         self._closed = False
         self.turns: list[dict] = []                    # per-utterance timing, for evidence
         self._t_speech_start: float | None = None
+        self._recent_speech: deque[tuple[float, str]] = deque(maxlen=6)   # echo guard
+        self.echo_drops = 0
+        # Headphones: full duplex, barge-in works. Speakers: the mic hears the
+        # tutor, so listening while speaking has to stop -- either because the
+        # caller said so, or because we caught enough echoes to be sure.
+        self.half_duplex = config.HALF_DUPLEX if half_duplex is None else half_duplex
+        self._suppressed_start = False
+        self.suppressed = 0
         self._started = threading.Event()              # set once runner.start() has run on the worker
         self.worker = GraphWorker(on_idle=self._maybe_confirm)
         self.player.set_on_drained(self._maybe_confirm)
@@ -159,12 +201,39 @@ class VoiceBridge:
             if kw.get("turn_id") == self.clock.current():
                 with self._lock:
                     self._spoke_since_confirm = True
+                    self._recent_speech.append((time.perf_counter(), text))
         self.speaker.speak = speak  # type: ignore[method-assign]
+
+    def _is_self_echo(self, text: str) -> str | None:
+        """The line the tutor just said that this transcript is an echo of."""
+        if not config.ECHO_GUARD or not text:
+            return None
+        now = time.perf_counter()
+        with self._lock:
+            recent = [(t, s) for t, s in self._recent_speech if now - t <= config.ECHO_GUARD_SEC]
+        for _, spoken in reversed(recent):
+            if looks_like_echo(text, spoken):
+                return spoken
+        return None
 
     # ------------------------------------------------------------ fast path
     def on_speech_start(self) -> None:
         """VAD: the learner started talking. Stop NOW; the words come later."""
         t = time.perf_counter()
+        if self.half_duplex and not self.player.is_idle():
+            # Speakers, not headphones: most of what the mic hears right now is
+            # the tutor itself, so stopping on the VAD alone would make every
+            # beat interrupt itself. Do not stop yet -- wait for the words. If
+            # they turn out to be an echo they are dropped; if the learner
+            # really did speak, on_transcript stops then. The interruption
+            # costs one Whisper pass instead of a millisecond, which is the
+            # price of not wearing headphones.
+            self.suppressed += 1
+            self._suppressed_start = True
+            with self._lock:
+                self._t_speech_start = t   # still measure VAD start -> transcript
+            self._emit("barge_in_deferred", reason="half_duplex")
+            return
         turn = self.clock.bump()
         with self._lock:
             self._spoke_since_confirm = False          # nothing queued counts as heard-through
@@ -180,13 +249,37 @@ class VoiceBridge:
     def on_transcript(self, text: str, lang: str | None = None, prob: float = 0.0,
                       duration_s: float = 0.0, whisper_ms: float = 0.0) -> None:
         text = (text or "").strip()
+        # A deferred start did not stop playback. If these words survive the
+        # echo guard they are real speech, and the "no VAD start" branch below
+        # performs the stop before the graph is told anything.
+        deferred, self._suppressed_start = self._suppressed_start, False
+        if (echoed := self._is_self_echo(text)):
+            self.echo_drops += 1
+            self._emit("echo_drop", heard=text, spoke=echoed[:60], deferred=deferred)
+            logger.info("echo: dropped %r (tutor said %r)", text, echoed[:60])
+            if deferred:
+                return          # nothing was stopped, so there is nothing to resume
+            # Playback was already stopped by the VAD. Deliver silence: the
+            # graph reads that as a backchannel and picks the lesson back up.
+            text = ""
+            if (not self.half_duplex and config.ECHO_AUTO_HALF_DUPLEX
+                    and self.echo_drops >= config.ECHO_AUTO_HALF_DUPLEX):
+                # Repeated echoes mean there are no headphones on. Stop
+                # listening while speaking, or the lesson stutters forever:
+                # every beat gets interrupted by itself and replayed.
+                self.half_duplex = True
+                self._emit("half_duplex_on", after_echoes=self.echo_drops)
+                logger.warning("mic is hearing the tutor (%d echoes): barge-in disabled for this "
+                               "session. Use headphones to keep it.", self.echo_drops)
         with self._lock:
             interrupted = self._interrupted
             self._interrupted = False
             t0 = self._t_speech_start
             self._t_speech_start = None
         if not interrupted:
-            # Transcript without a VAD start (should not happen); make the stop happen anyway.
+            # Either a deferred half-duplex start (the stop was held back until
+            # we knew this was not an echo) or a transcript with no VAD start
+            # at all. Either way, stop now, before the graph is told.
             self.clock.bump()
             self.speaker.stop()
         cur = self.speaker.take_cursor()
@@ -236,7 +329,8 @@ def make_bridge(player: Player, *, session_id: str, pdf_paths: list[str] | None 
                 preset_lang: str | None = None, evidence_path: str | Path | None = None,
                 checkpoint_db: str | None = None, on_text: Callable[[str, dict], None] | None = None,
                 on_event: Callable[[str, dict], None] | None = None, stress_delay_ms: int | None = None,
-                synth: RimeHTTP | None = None, deps_overrides: dict | None = None) -> VoiceBridge:
+                synth: RimeHTTP | None = None, deps_overrides: dict | None = None,
+                half_duplex: bool | None = None) -> VoiceBridge:
     evidence = EvidenceWriter(evidence_path, session_id) if evidence_path else None
 
     def emit(name: str, p: dict) -> None:
@@ -258,6 +352,6 @@ def make_bridge(player: Player, *, session_id: str, pdf_paths: list[str] | None 
     deps = Deps(**kw)
     runner = TutorRunner(deps, session_id, pdf_paths=pdf_paths, preset_lang=preset_lang,
                          checkpointer=make_checkpointer(checkpoint_db))
-    bridge = VoiceBridge(runner, clock, speaker, player, on_event=emit)
+    bridge = VoiceBridge(runner, clock, speaker, player, on_event=emit, half_duplex=half_duplex)
     bridge.evidence = evidence  # type: ignore[attr-defined]
     return bridge

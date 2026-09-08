@@ -172,6 +172,64 @@ def test_quit_works_during_onboarding(runner, speaker):
     assert runner.finished
 
 
+# --- onboarding must not treat every noise as an answer --------------------
+# Regression: a live session turned "hi" into a topic (the tutor then asked
+# which class it was for), "I didn't understand the question" into a Wikipedia
+# lookup, and "just stop" into a lesson about Just Stop Oil.
+
+def test_greeting_is_not_a_topic(runner, speaker):
+    runner.start()
+    runner.barge_in("English")
+    runner.barge_in("hi")
+    assert runner.state["topic"] is None
+    assert "What shall we study" in speaker.lines[-1].text     # asked again, not "which class?"
+    runner.barge_in("the heart for class six")                 # and the real answer still lands
+    assert runner.state["topic"] == "the heart"
+
+
+def test_confusion_re_asks_the_question(runner, speaker):
+    runner.start()
+    runner.barge_in("English")
+    runner.barge_in("what did you ask?")
+    assert runner.state["topic"] is None
+    assert "What shall we study" in speaker.lines[-1].text
+    runner.barge_in("I didn't understand the question")        # twice in a row is still fine
+    assert runner.state["topic"] is None
+    assert runner.state["onboarding_step"] == "source"
+    runner.barge_in("the heart for class six")
+    assert runner.state["onboarding_step"] == "done" and runner.state["topic"] == "the heart"
+
+
+def test_confusion_while_being_asked_the_class_re_asks_the_class(runner, speaker):
+    runner.start()
+    runner.barge_in("English")
+    runner.barge_in("the heart")
+    assert "which class" in speaker.lines[-1].text
+    runner.barge_in("sorry, what?")
+    assert "which class" in speaker.lines[-1].text              # the class, not the topic
+    assert runner.state["topic"] == "the heart"
+    runner.barge_in("class six")
+    assert runner.state["grade"] == "class 6"
+
+
+def test_bare_stop_quits_during_onboarding(runner, speaker):
+    runner.start()
+    runner.barge_in("English")
+    runner.barge_in("just stop")
+    assert runner.state["topic"] is None                        # not a lesson about Just Stop Oil
+    assert "Bye" in speaker.lines[-1].text
+    assert runner.finished
+
+
+def test_a_real_topic_starting_with_a_question_word_still_works(runner, speaker):
+    """The guard matches whole utterances only: these are topics, not confusion."""
+    runner.start()
+    runner.barge_in("English")
+    runner.barge_in("explain photosynthesis for class six")
+    assert runner.state["onboarding_step"] == "done"
+    assert runner.state["topic"] == "photosynthesis" and runner.state["grade"] == "class 6"
+
+
 def test_explain_in_other_language_is_one_off_then_lesson_continues(lesson, speaker):
     from config import LANG_SPEAKER
     n = len(speaker.lines)
@@ -238,3 +296,61 @@ def test_unsupported_study_language_is_explained_and_reasked(runner, speaker):
     assert "Which language" in speaker.lines[-1].text
     runner.barge_in("English")
     assert runner.state["active_lang"] == "en"
+
+
+# --- "I wanted respiration, not reproduction" ------------------------------
+# Regression: topic navigation only ever searched the CURRENT lesson, so a
+# request for a different subject answered "I couldn't find a part about that"
+# and carried on teaching the wrong one.
+
+def _two_topic_runner(speaker, clock):
+    from agents.graph import TutorRunner
+    from agents.material import sections_from_plaintext
+    from conftest import fixture_sections, make_deps
+
+    resp = sections_from_plaintext(
+        "== Respiration ==\nRespiration releases energy from food inside cells. "
+        "Breathing moves oxygen into the lungs.\n", title="Respiration", source_url="fixture://resp")
+    asked: list[str] = []
+
+    def wiki(topic: str, lang: str):
+        asked.append(topic)
+        if "respirat" in topic.lower():
+            return (resp, "en", "fixture://resp")
+        return (fixture_sections(), "en", "fixture://heart")
+
+    return TutorRunner(make_deps(speaker=speaker, clock=clock, wiki_fetch=wiki), "switch"), asked
+
+
+def test_wrong_topic_is_switched_not_navigated(speaker, clock):
+    from conftest import onboard
+    runner, asked = _two_topic_runner(speaker, clock)
+    onboard(runner)
+    assert runner.state["topic"] == "the heart"
+
+    runner.barge_in("oh sorry, I wanted to learn respiration not the heart")
+
+    assert asked[-1] == "respiration"
+    assert runner.state["topic"] == "respiration"
+    assert runner.state["topic_switch"] is False              # cleared once ingested
+    said = " ".join(l.text for l in speaker.lines[-4:])
+    assert "switch to respiration" in said
+    assert "Respiration releases energy" in said
+    assert "couldn't find a part" not in said
+
+
+def test_grade_survives_a_topic_switch(speaker, clock):
+    from conftest import onboard
+    runner, _ = _two_topic_runner(speaker, clock)
+    onboard(runner)
+    assert runner.state["grade"] == "class 6"
+    runner.barge_in("change the topic to respiration")
+    assert runner.state["topic"] == "respiration" and runner.state["grade"] == "class 6"
+
+
+def test_in_lesson_navigation_still_navigates(lesson, speaker):
+    """No switch wording: stay in this lesson, do not fetch anything new."""
+    lesson.barge_in("go to the part about chambers", words_heard=5)
+    assert lesson.state["topic"] == "the heart"
+    assert lesson.state["topic_switch"] is False
+    assert "four chambers" in speaker.lines[-1].text

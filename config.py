@@ -30,6 +30,20 @@ RIME_CATALOG_URL = "https://users.rime.ai/data/voices/all-v2.json"
 # Explicit on purpose: omitting modelId makes Rime default to mistv3.
 RIME_MODEL_ID = _env("RIME_MODEL_ID", "coda")
 
+# Without headphones the mic hears the tutor and the tutor answers itself.
+# There is no AEC on the local path, so a transcript that repeats what was just
+# spoken is discarded (see voice/bridge.py). Set ECHO_GUARD=0 if you are on
+# headphones and want every word through.
+ECHO_GUARD = (_env("ECHO_GUARD", "1") or "1").lower() not in ("0", "false", "no")
+ECHO_GUARD_SEC = float(_env("ECHO_GUARD_SEC", "8"))
+# Half duplex: ignore the mic entirely while the tutor is speaking. This is the
+# only way a speaker-only session stays coherent -- otherwise the tutor's own
+# voice keeps triggering the barge-in and the lesson stutters. It costs
+# barge-in, so it is off for headphone users and switched on automatically
+# after this many echoes are caught (0 disables the automatic switch).
+HALF_DUPLEX = (_env("HALF_DUPLEX", "0") or "0").lower() in ("1", "true", "yes")
+ECHO_AUTO_HALF_DUPLEX = int(_env("ECHO_AUTO_HALF_DUPLEX", "2"))
+
 # Which speech provider voice/tts.py uses: rime | sapi | silent | auto.
 # "auto" is Rime when RIME_API_KEY is set, otherwise the Windows synthesiser,
 # so the full STT -> agent -> TTS loop is audible without a key.

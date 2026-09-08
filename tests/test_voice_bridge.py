@@ -183,3 +183,127 @@ def test_tts_rendered_after_a_barge_in_is_dropped():
     assert not any("four chambers" in i.text.lower() for i in player.enqueued[n_items:])
     assert any(e == "tts_drop_stale" for e, _ in events)
     bridge.close()
+
+
+# --- self-echo guard -------------------------------------------------------
+# Regression: a live session without headphones fed the tutor its own voice.
+# "Let me check that." came back as "Check that.", "I'm not sure." as "sure.",
+# and four turns later the tutor was teaching an article about Dean Blunt.
+
+def test_echo_of_the_tutors_own_line_is_not_a_question(voice):
+    bridge, player, spoken, events = voice
+    say(bridge, "English")
+    say(bridge, "the heart for class six")
+    n = len(spoken)
+    last_line = spoken[-1]
+    tail = " ".join(last_line.split()[-4:])          # the mic hears the end of it
+    say(bridge, tail)
+    assert bridge.echo_drops == 1
+    assert any(e == "echo_drop" for e, _ in events)
+    # Treated as "nothing said": the lesson carries on, no answer to the echo.
+    assert not any("Sorry, I didn't catch that" in s for s in spoken[n:])
+
+
+def test_real_speech_that_shares_a_word_still_gets_through(voice):
+    bridge, player, spoken, events = voice
+    say(bridge, "English")
+    say(bridge, "the heart for class six")
+    say(bridge, "how many chambers does the heart have")
+    # Shares "the heart" with lines the tutor just spoke, but is not a run of
+    # them: it reaches the graph with its words intact.
+    assert bridge.echo_drops == 0
+    assert not any(e == "echo_drop" for e, _ in events)
+    assert bridge.turns[-1]["text"] == "how many chambers does the heart have"
+
+
+def test_looks_like_echo_matches_the_lines_from_the_live_session():
+    from voice.bridge import looks_like_echo
+    assert looks_like_echo("Check that.", "Let me check that.")
+    assert looks_like_echo("sure.", "I'm not sure.")
+    assert looks_like_echo("moment.", "One moment.")
+    assert looks_like_echo("Give me a moment.", "Give me a moment while I get the lesson ready.")
+    assert looks_like_echo("Sorry, I didn't...", "Sorry, I didn't catch that. Could you say it again?")
+    # ...and does not swallow the learner
+    assert not looks_like_echo("what does chlorophyll mean", "Let me check that.")
+    assert not looks_like_echo("the heart for class six", "Great. What shall we study today?")
+    assert not looks_like_echo("a", "Let me check that.")          # single short word
+
+
+# --- headphones vs speakers ------------------------------------------------
+
+def test_headphones_full_duplex_barge_in_still_stops_playback():
+    """Default mode: interrupting the tutor works exactly as before."""
+    bridge, player, spoken, events = build(auto_play=False)
+    bridge.start()
+    assert bridge.wait_idle(20)
+    assert bridge.half_duplex is False
+    say(bridge, "English")
+    say(bridge, "the heart for class six")
+    stops_before = bridge.speaker.stops
+    player.play_words(4)
+    bridge.on_speech_start()                       # learner cuts in mid-beat
+    assert bridge.speaker.stops == stops_before + 1
+    assert bridge.suppressed == 0
+    bridge.close()
+
+
+def test_speakers_half_duplex_does_not_let_the_tutor_interrupt_itself():
+    bridge, player, spoken, events = build(auto_play=False)
+    bridge.half_duplex = True
+    bridge.start()
+    assert bridge.wait_idle(20)
+    stops_before = bridge.speaker.stops
+    player.play_words(2)                           # tutor is mid-line, not idle
+    bridge.on_speech_start()                       # the mic hears the tutor
+    bridge.on_transcript("Which language shall we study in?", lang="en", prob=0.9,
+                         duration_s=1.0, whisper_ms=300)
+    assert bridge.suppressed == 1
+    assert bridge.speaker.stops == stops_before    # playback never stopped
+    assert not bridge.turns                        # the graph was told nothing
+    assert any(e == "echo_drop" for e, _ in events)
+    bridge.close()
+
+
+def test_speakers_half_duplex_still_hears_real_speech_over_the_tutor():
+    """Deferred, not discarded: the stop happens when the words arrive."""
+    bridge, player, spoken, events = build(auto_play=False)
+    bridge.half_duplex = True
+    bridge.start()
+    assert bridge.wait_idle(20)
+    stops_before = bridge.speaker.stops
+    player.play_words(2)
+    bridge.on_speech_start()
+    bridge.on_transcript("English", lang="en", prob=0.9, duration_s=1.0, whisper_ms=300)
+    assert bridge.wait_idle(20)
+    assert bridge.speaker.stops == stops_before + 1        # stopped late, but stopped
+    assert bridge.turns[-1]["text"] == "English"
+    assert bridge.runner.state["active_lang"] == "en"
+    assert any(e == "barge_in_deferred" for e, _ in events)
+    bridge.close()
+
+
+def test_speakers_half_duplex_still_hears_you_in_the_gaps():
+    bridge, player, spoken, events = build()       # auto-play: player idles between lines
+    bridge.half_duplex = True
+    bridge.start()
+    assert bridge.wait_idle(20)
+    say(bridge, "English")
+    assert bridge.runner.state["active_lang"] == "en"
+    say(bridge, "the heart for class six")
+    assert bridge.runner.state["topic"] == "the heart"
+    bridge.close()
+
+
+def test_repeated_echoes_switch_to_half_duplex_by_themselves():
+    import config
+    bridge, player, spoken, events = build()
+    bridge.start()
+    assert bridge.wait_idle(20)
+    say(bridge, "English")
+    for _ in range(config.ECHO_AUTO_HALF_DUPLEX):
+        tail = " ".join(spoken[-1].split()[-4:])
+        say(bridge, tail)
+    assert bridge.echo_drops >= config.ECHO_AUTO_HALF_DUPLEX
+    assert bridge.half_duplex is True
+    assert any(e == "half_duplex_on" for e, _ in events)
+    bridge.close()

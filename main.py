@@ -52,7 +52,8 @@ logger = logging.getLogger("v-tutor.main")
 
 SHOW_EVENTS = {"vad_start", "transcript", "intent", "retrieve", "answer_mode", "web_search", "fence_drop",
                "discard", "tts_drop_stale", "tts_fallback", "filler", "playback_confirmed", "ingest",
-               "localized_bg", "navigate", "interrupt", "graph_turn_done"}
+               "localized_bg", "navigate", "interrupt", "graph_turn_done", "onboarding_reask",
+               "echo_drop", "half_duplex_on", "switch_topic"}
 
 
 def _console_event(name: str, p: dict) -> None:
@@ -93,13 +94,19 @@ async def run_local(args: argparse.Namespace) -> None:
         checkpoint_db=None if args.no_persist else config.CHECKPOINT_DB,
         on_text=_console_text, on_event=_console_event if not args.quiet else None,
         stress_delay_ms=args.stress_ms,
+        half_duplex=True if args.no_headphones else None,
     )
     print(f"\nsession={session}  tts={bridge.speaker.provider}/{config.RIME_MODEL_ID}  "
           f"llm={bridge.runner.deps.llm_fast.provider}/{bridge.runner.deps.llm_strong.model}  "
           f"whisper={stt_settings.WHISPER_MODEL_SIZE} (beam {stt_settings.WHISPER_BEAM_SIZE}, "
           f"{stt_settings.WHISPER_CPU_THREADS} threads)  stress={args.stress_ms}ms")
     print(f"transcripts: {stt_settings.TRANSCRIPTS_CSV}")
-    print("Wear headphones (the mic must not hear the tutor). Speak when the tutor asks. Ctrl+C to quit.\n")
+    if args.no_headphones:
+        print("Speakers mode: the mic is ignored while the tutor talks, so you cannot interrupt it."
+              "\nSpeak after it stops. Ctrl+C to quit.\n")
+    else:
+        print("Wear headphones (the mic must not hear the tutor), then interrupt whenever you like."
+              "\nOn speakers, run with --no-headphones. Ctrl+C to quit.\n")
 
     speech = SpeechInput()
     speech.load()                       # models load before the tutor says anything
@@ -245,6 +252,8 @@ def main() -> None:
         ap.add_argument("--stress-ms", type=int, default=config.STRESS_DELAY_MS)
         ap.add_argument("--input-device", default=None)
         ap.add_argument("--output-device", default=None)
+        ap.add_argument("--no-headphones", action="store_true",
+                        help="speakers: ignore the mic while the tutor talks (no barge-in, no echo)")
         ap.add_argument("--no-evidence", action="store_true")
         ap.add_argument("--no-persist", action="store_true", help="in-memory checkpoints (fresh session)")
         ap.add_argument("--quiet", action="store_true", help="hide internal events")

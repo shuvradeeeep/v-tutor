@@ -117,12 +117,31 @@ class TutorNodes:
         }
 
     # --------------------------------------------------------------- onboarding
-    def _onboarding_quit(self, state: dict, utter: str) -> dict | None:
-        """'That's enough' must work before the lesson starts, too."""
+    def _onboarding_interrupt(self, state: dict, utter: str, reask: str) -> dict | None:
+        """
+        Handle anything that is not an answer to the question just asked.
+
+        Onboarding has no intent classification -- it takes what it hears as
+        the answer. That made "hi" a topic, "I didn't understand the question"
+        a Wikipedia lookup, and "just stop" a lesson about Just Stop Oil. So
+        before an utterance is read as an answer:
+
+          quit ("that's enough", "just stop")   -> end the session
+          confusion ("what did you ask?")       -> ask the question again
+          a greeting ("hi")                     -> ask the question again
+
+        Re-asking does not consume the turn or count as a failed attempt, so
+        the learner can be confused twice and still be understood the third
+        time. Returns None when the utterance really is an answer.
+        """
         c = intent_mod.classify_rules(utter)
-        if c and c.session_cmd == "quit":
+        if (c and c.session_cmd == "quit") or intent_mod.is_stop_request(utter):
             return _merge(self._say(state, self._T(state, "goodbye"), kind="system"),
                           {"lesson_done": True, "session_cmd": "quit", "answer": None})
+        if intent_mod.is_confusion(utter) or intent_mod.is_greeting(utter):
+            self.d.emit("onboarding_reask", utterance=utter[:80],
+                        step=state.get("onboarding_step"))
+            return {"answer": reask, "user_utterance": None}
         return None
 
     def choose_language(self, state: dict) -> dict:
@@ -131,7 +150,7 @@ class TutorNodes:
         utter = (state.get("user_utterance") or "").strip()
         if not utter:
             return {"answer": t("en", "ask_language")}
-        if (q := self._onboarding_quit(state, utter)):
+        if (q := self._onboarding_interrupt(state, utter, t("en", "ask_language"))):
             return q
         lang = intent_mod.parse_language(utter, state.get("detected_lang"), config.SUPPORTED_LANGS)
         if not lang:
@@ -155,9 +174,16 @@ class TutorNodes:
         utter = (state.get("user_utterance") or "").strip()
         if not utter:
             return {"answer": self._T(state, "ask_source")}
-        if (q := self._onboarding_quit(state, utter)):
+        # Re-ask whichever question is actually outstanding: the topic, or the
+        # class if the topic is already known.
+        pending = "ask_grade" if (state.get("topic") and not state.get("grade")) else "ask_source"
+        if (q := self._onboarding_interrupt(state, utter, self._T(state, pending))):
             return q
         topic, grade = intent_mod.parse_topic_grade(utter)
+        # "no, I said respiration, not reproduction" while still being onboarded:
+        # take the topic they are correcting TO, not the whole sentence.
+        if (corrected := intent_mod.parse_topic_switch(utter)):
+            topic = corrected
         if state.get("topic") and not state.get("grade"):
             g = intent_mod.parse_grade_only(utter)     # tutor asked "which class?"; "six" is the grade
             if g:
@@ -327,7 +353,8 @@ class TutorNodes:
                     beats=len(beats), upfront=len(upfront), background=len(later))
         return {"lesson_plan": beats, "beat_index": 0, "beat_spoken": False, "lesson_done": False,
                 "heard_cursor": None, "heard_sentence": None, "onboarding_step": "done",
-                "preface": preface, "answer": None, "user_utterance": None}
+                "preface": preface, "answer": None, "user_utterance": None,
+                "topic_switch": False, "intent": None}
 
     # -------------------------------------------------------------- lesson loop
     def _resume_start(self, state: dict, idx: int, beat: dict) -> int:
@@ -529,6 +556,8 @@ class TutorNodes:
     def find_section(self, state: dict) -> dict:
         nav = state.get("nav_target") or {}
         plan = state.get("lesson_plan") or []
+        if (switch := self._maybe_switch_topic(state, nav)):
+            return switch
         if not plan:
             return {"answer": self._T(state, "nav_not_found")}
         idx = state.get("beat_index", 0)
@@ -556,6 +585,30 @@ class TutorNodes:
         self.d.emit("navigate", kind=kind, to_beat=target)
         return {"beat_index": target, "beat_spoken": False, "heard_cursor": None,
                 "answer": None, "nav_target": None}
+
+    def _maybe_switch_topic(self, state: dict, nav: dict) -> dict | None:
+        """
+        "I wanted respiration, not reproduction" is a request for a different
+        LESSON, not a different section of this one. Navigation only ever
+        searched inside the current lesson, so the tutor answered "I couldn't
+        find a part about that" and carried on with the wrong subject.
+
+        Only explicit switch wording gets here ("instead", "I wanted X",
+        "change the topic"); "go to the part about valves" still navigates
+        inside the lesson. The old material is left in place until the new
+        fetch succeeds, so a topic that does not exist costs nothing.
+        """
+        topic = str(nav.get("value") or "").strip()
+        if nav.get("kind") != "topic" or not topic:
+            return None
+        if not intent_mod.is_topic_switch(state.get("user_utterance") or ""):
+            return None
+        self.d.emit("switch_topic", to=topic, from_topic=state.get("topic"))
+        return _merge(self._say(state, self._T(state, "switch_topic", title=topic), kind="system"),
+                      {"topic": topic, "topic_switch": True, "source_kind": "topic",
+                       "source_url": None, "source_title": None, "preface": None,
+                       "nav_target": None, "answer": None, "user_utterance": None,
+                       "onboarding_step": "done"})
 
     def explain(self, state: dict) -> dict:
         self._arm(state, "filler_moment")
@@ -740,6 +793,8 @@ class TutorNodes:
         return state.get("session_cmd") or "continue"
 
     def route_nav(self, state: dict) -> str:
+        if state.get("topic_switch"):
+            return "switch"                       # fetch a whole new lesson
         return "not_found" if state.get("answer") else "found"
 
     def route_retrieval(self, state: dict) -> str:
