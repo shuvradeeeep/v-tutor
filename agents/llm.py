@@ -167,9 +167,13 @@ class _LazyProvider:
     # which is cheaper than making every answer wait for a limit that may not
     # even be close. Pacing exists to keep BACKGROUND prep out of the way.
     FOREGROUND_WAIT_FRACTION = 0.075
-    # Share of the minute background prep may take. The rest is held for
-    # whatever the learner asks next.
-    BACKGROUND_CEILING = 0.6
+    # Share of the minute background prep may take before it yields to the
+    # learner. Measured against the live API, real usage runs at roughly a
+    # third of the limit, so 0.6 was stalling section prep for 20s at lesson
+    # start for no reason -- and a section that is not localised in time is
+    # read out as raw encyclopedia text. Leave a slice for the next question
+    # and nothing more.
+    BACKGROUND_CEILING = 0.85
 
     def complete(self, system: str, user: str) -> str:
         return self._guarded(system, user, self.max_tokens,

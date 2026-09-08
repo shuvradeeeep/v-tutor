@@ -560,7 +560,7 @@ class TutorNodes:
 
     def classify_intent(self, state: dict) -> dict:
         utter = (state.get("user_utterance") or "").strip()
-        parts = intent_mod.split_compound(utter)
+        parts = intent_mod.split_compound(utter, paused=bool(state.get("paused")))
         # Only reached on a rule miss, which is exactly where the grey cases are
         # ("the other one", "why?"): give the model the sentence the learner
         # interrupted and the last exchanges to read it against.

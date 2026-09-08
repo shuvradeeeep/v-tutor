@@ -66,6 +66,9 @@ def _hi(text: str, *alts: str) -> bool:
     return any(a in text for a in alts)
 
 
+_SENTENCE_SPLIT = re.compile(r"(?<=[.?!])\s+")
+
+
 def _norm(utter: str) -> str:
     return re.sub(r"\s+", " ", utter.strip().lower())
 
@@ -222,6 +225,31 @@ _QUESTION_HI = ["क्या", "क्यों", "कैसे", "कब", "�
                 "किस", "किसे", "किसने"]
 
 
+# Politely asking for a break is still asking for a break. "Can you pause for
+# a while while I come?" used to reach the LLM, come back as a question, get
+# answered ("Sure, I will wait for you") and then the lesson carried straight
+# on -- the learner was told yes and ignored.
+_PAUSE_REQUEST = re.compile(
+    r"\b(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:just\s+)?(?:pause|wait|stop|hold on)\b|"
+    r"\b(?:please\s+)?(?:pause|wait)\s+(?:for\s+)?(?:a\s+)?(?:while|bit|moment|sec|second|minute)\b|"
+    r"\bwait\s+for\s+me\b|\bhold\s+on\s+(?:a\s+)?(?:sec|second|moment|minute|while)\b|"
+    r"\bgive\s+me\s+(?:a\s+)?(?:sec|second|moment|minute|while|two minutes|five minutes)\b|"
+    r"\b(?:i'?ll|i will|i'?m going to)\s+be\s+(?:right\s+)?back\b|\bbe\s+right\s+back\b|\bbrb\b|"
+    r"\b(?:let'?s|can we)\s+take\s+a\s+(?:break|pause)\b|\bi need a (?:break|minute|moment)\b|"
+    r"\b(?:just|please)\s+(?:pause|wait|hold on)\b|\b(?:pause|wait)\s+please\b|"
+    r"\bzara ruko\b|\bthoda wait\b|\bek minute ruko\b|\bmain aata hoon\b|\bmain aati hoon\b",
+    re.IGNORECASE)
+
+# "let's continue the session now", "ok carry on then" -- a continue request
+# with a few words of politeness around it. The bare-word rule below caps at
+# four words, which this phrasing exceeds.
+# "go on" is deliberately absent: unpaused it means "I'm following, keep
+# talking" (a backchannel), and the paused branch below already handles it.
+_CONTINUE_REQUEST = re.compile(
+    r"^(?:ok(?:ay)?|so|please|now|and|let'?s|lets|we can|you can)?[, ]*"
+    r"(?:continue|carry on|resume|keep going)\b", re.IGNORECASE)
+
+
 def classify_rules(utter: str, *, paused: bool = False) -> Classification | None:
     text = _norm(utter)
     if not text:
@@ -240,18 +268,24 @@ def classify_rules(utter: str, *, paused: bool = False) -> Classification | None
            "end the lesson", "stop teaching", "band karo", "bas ho gaya", "aaj ke liye bas", "alvida") \
             or _hi(text, "बंद करो", "आज के लिए बस", "बस हो गया", "अलविदा", "बाय"):
         return Classification("session", session_cmd="quit")
-    if (n <= 4 and _en(text, "continue", "carry on", "resume", "keep going", "aage badho", "aage badhe",
-                       "jaari rakho", "jari rakho", "chalo aage")) \
-            or (paused and _en(text, "go on", "ok", "okay", "yes", "start", "chalo", "shuru karo", "haan",
-                               "i'm back", "im back", "i am back", "back now", "let's go", "lets go")) \
+    if (n <= 6 and _CONTINUE_REQUEST.search(text)) \
+            or (n <= 4 and _en(text, "continue", "carry on", "resume", "keep going", "aage badho",
+                               "aage badhe", "jaari rakho", "jari rakho", "chalo aage")) \
+            or (paused and n <= 5
+                and _en(text, "go on", "ok", "okay", "yes", "start", "chalo", "shuru karo", "haan",
+                        "i'm back", "im back", "i am back", "back now", "let's go", "lets go")) \
             or _hi(text, "जारी रखो", "जारी रखें", "आगे बढ़ो", "आगे बढ़ें", "चलो आगे") \
-            or (paused and _hi(text, "चलो", "शुरू करो", "हाँ")):
+            or (paused and n <= 5 and _hi(text, "चलो", "शुरू करो", "हाँ")):
+        # The word cap matters while paused: "let's continue the session now,
+        # let's start with respiration" contains "start", and without it the
+        # whole sentence was read as a bare "continue" and the new topic lost.
         return Classification("session", session_cmd="continue")
     if re.fullmatch(r"(?:pause|stop|stop please|stop it|stop now|hold on|hang on|wait|wait up|"
                     r"one (?:sec|second|moment|minute)|wait a (?:sec|second|moment|minute)|"
                     r"just a (?:sec|second|moment|minute)|bas|ruko|rukiye|ruk jao|ek minute|ek second|"
                     r"thoda ruko)[.!]*", text) \
-            or (n <= 4 and _hi(text, "रुको", "रुकिए", "रुक जाओ", "एक मिनट", "थोड़ा रुको")):
+            or (n <= 4 and _hi(text, "रुको", "रुकिए", "रुक जाओ", "एक मिनट", "थोड़ा रुको")) \
+            or _PAUSE_REQUEST.search(text):
         return Classification("session", session_cmd="pause")
 
     # ---- command: whole-lesson language switch --------------------------
@@ -433,6 +467,9 @@ _SWITCH_MARKER = re.compile(
     # the topic word is what separates this from "tell me more about valves",
     # which is a question inside the current lesson.
     r"\b(?:want|like|learn|study|do|teach|start)\b[^.?!]{0,24}?\b(?:topic|lesson|chapter|subject)\b|"
+    # "let's start with respiration" -- naming where to start is naming a new
+    # lesson, not a section of the current one.
+    r"\b(?:start|begin)\s+(?:with|on)\b|"
     r"\b(?:topic|lesson)\s+badal|\bbadal\s+do\b|\bdusra\s+(?:topic|chapter)\b", re.IGNORECASE)
 # "I wanted X, not Y" -- the tutor misheard the topic and is teaching the wrong one.
 _SWITCH_CORRECTION = re.compile(
@@ -444,7 +481,8 @@ _TOPIC_SWITCH_HI = ("बदल दो", "टॉपिक बदल", "दूस�
 _SWITCH_LEAD = re.compile(
     rf"^{_LEAD}(?:"
     r"i\s+(?:wanted|want|meant|asked for|said)\s*(?:to\s*)?(?:learn|study|do|hear)?\s*(?:about\s*)?|"
-    r"let'?s\s+(?:do|study|learn)\s*|teach\s+me\s*|"
+    r"let'?s\s+(?:do|study|learn|start|begin)\s*(?:with|on)?\s*|teach\s+me\s*|"
+    r"(?:start|begin)\s+(?:with|on)\s*|"
     r"(?:change|switch)\s*(?:the\s*)?(?:topic|lesson|subject|chapter)?\s*(?:to|into)\s*"
     r")?", re.IGNORECASE)
 _TOPIC_WORD_LEAD = re.compile(r"^(?:the\s+)?(?:topic|lesson|chapter|subject)\s*(?:on|about|is|of)?\s*",
@@ -463,6 +501,13 @@ def parse_topic_switch(utter: str) -> str | None:
     text = _norm(utter)
     if not is_topic_switch(text):
         return None
+    # Only the sentence that asks for the switch. "Let's continue the session
+    # now. Let's start with respiration. Tell me what it is." must give
+    # "respiration", not every word in the paragraph.
+    for sentence in _SENTENCE_SPLIT.split(text):
+        if _SWITCH_MARKER.search(sentence) or _SWITCH_CORRECTION.search(sentence):
+            text = sentence.strip()
+            break
     # "X not Y" / "X instead of Y" / "X instead": the wanted topic comes first.
     m = re.match(r"^(.*?)\s+(?:not|instead of|and not|rather than)\s+\S+", text) \
         or re.match(r"^(.*?)\s+instead\b", text)
@@ -533,9 +578,16 @@ _COMPOUND_EN = re.compile(r"\s+(?:and then|and also|and|then)\s+", re.IGNORECASE
 _COMPOUND_HI = re.compile(r"\s+(?:और फिर|और|फिर)\s+")
 
 
-def split_compound(utter: str) -> list[str]:
+def split_compound(utter: str, *, paused: bool = False) -> list[str]:
     """'go back to cells and explain it simpler' -> two clauses, if BOTH classify.
     Otherwise the utterance stays whole (an 'and' inside a question is not a split)."""
+    # Sentences first. "Let's continue the session now. Let's start with
+    # respiration. Tell me what it is." is three requests, and only acting on
+    # the first one lost the topic change entirely.
+    sentences = [s.strip() for s in _SENTENCE_SPLIT.split(utter.strip()) if _words(s) >= 2]
+    if len(sentences) > 1 and classify_rules(sentences[0], paused=paused):
+        return [sentences[0], " ".join(sentences[1:])]
+
     for rx in (_COMPOUND_EN, _COMPOUND_HI):
         parts = rx.split(utter, maxsplit=1)
         if len(parts) == 2 and all(_words(p) >= 2 for p in parts):

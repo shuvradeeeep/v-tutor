@@ -141,3 +141,42 @@ def test_naming_the_topic_word_is_a_switch_but_asking_for_more_is_not():
     assert is_topic_switch("teach me the chapter on valves")
     assert not is_topic_switch("I want to learn more about valves")
     assert not is_topic_switch("tell me more about the aorta")
+
+
+# --- a live session where the tutor ignored the learner --------------------
+# "Can you pause for a while while I come?" was answered ("Sure, I will wait
+# for you") and then the lesson carried straight on; and "Let's continue the
+# session now. Let's start with respiration." was read as a bare "continue",
+# losing the new topic completely.
+
+def test_polite_pause_requests_are_pauses():
+    from agents.intent import classify_rules
+    for utter in ("Can you pause for a while while I come?", "Just pause please.",
+                  "could you wait a moment", "wait for me", "give me a minute",
+                  "hold on a sec", "I'll be right back", "let's take a break",
+                  "please pause"):
+        c = classify_rules(utter)
+        assert c and c.session_cmd == "pause", utter
+
+
+def test_a_question_containing_the_word_pause_is_not_a_pause():
+    from agents.intent import classify_rules
+    c = classify_rules("why does the heart pause between beats")
+    assert c and c.intent == "question"
+
+
+def test_continue_plus_new_topic_does_both():
+    from agents.intent import classify_rules, split_compound
+    utter = "Let's continue the session now. Let's start with respiration. Tell me what it is."
+    parts = split_compound(utter, paused=True)
+    assert len(parts) == 2
+    first = classify_rules(parts[0], paused=True)
+    assert first and first.session_cmd == "continue"
+    second = classify_rules(parts[1], paused=True)
+    assert second and second.nav_target == {"kind": "topic", "value": "respiration"}
+
+
+def test_start_with_names_a_new_lesson():
+    from agents.intent import parse_topic_switch
+    assert parse_topic_switch("let's start with respiration") == "respiration"
+    assert parse_topic_switch("begin with the water cycle") == "the water cycle"
