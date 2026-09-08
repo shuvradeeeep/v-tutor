@@ -210,7 +210,55 @@ answer gets spoken as if it were current.
 
 ---
 
-## 5. Rime configuration (pinned)
+## 4a. What was built, and what it cost (2026-09-08)
+
+The layers above are the design. This is what the running system does, with the
+numbers that were measured rather than hoped for. Full detail:
+[STT_AND_INTENTS.md](STT_AND_INTENTS.md).
+
+**Layer 1 — STT is ~2× faster than the design assumed it would need to be.**
+`faster_whisper.transcribe(language=None)` runs the encoder twice: once for
+language detection, once for decoding, discarding the first. `stt/transcriber.py`
+encodes once and reuses the output for both, with `cpu_threads` pinned to
+physical cores and greedy decoding. `base`/int8 went from 850–990 ms to
+**430–560 ms** per utterance; `small` now costs ~1.8 s, which is less than
+`base` used to. Language detection is unmodified — same features, same
+probabilities. A language outside `WHISPER_ALLOWED_LANGUAGES` (default `en,hi`)
+is re-decoded as its alias, which is free because the encoder output is reused;
+this exists because spoken Hindi is regularly detected as Urdu and the Arabic
+script transcript is useless to every stage after it.
+
+**Layer 1 ↔ 3 — the mic hears the tutor when there are no headphones.** Nothing
+in the design covers acoustic feedback, and it is not a small failure: the
+tutor answers its own voice and drifts onto whatever topic its own words
+retrieve. Two mitigations live in `voice/bridge.py`: a transcript that is a
+contiguous run of words the tutor just said is treated as silence, and after
+two such echoes the session drops to **half duplex**, where the VAD no longer
+stops playback and interruptions cost one Whisper pass instead of a
+millisecond. Invited replies ("Continue.") are explicitly exempt from the echo
+guard. This is a workaround, not a fix — see limitations.
+
+**Layer 2 — eight intents, not seven.** `meta` was added for questions about
+the *session* ("how long will this take", "how much is left", "who are you").
+They are answered from the lesson plan with no model call, because retrieval has
+nothing to say about them and a web search answered one with "three to four
+months". `navigate` also gained a second exit: an explicit change of subject
+re-enters `fetch_material` for a whole new lesson instead of searching the
+current one.
+
+**Layer 2 — the session is remembered.** Every answer prompt carries the
+lesson, the sections covered, the sentence the learner interrupted, the last 6
+exchanges, and the questions asked earlier in the session. Before this, each
+question was answered as if it were the first, and "why is that?" could not be
+answered at all.
+
+**Provider limits are part of the design now.** `max_tokens` is reserved
+against a provider's tokens-per-minute allowance whether it is used or not, so
+`agents/llm.py` sizes it to measured work (answers ~50 completion tokens,
+section rewrites ~220), meters real usage per model, retries a 429 using the
+delay the provider itself suggests, and holds a slice of each minute back from
+background section prep. A 15-minute session at 44 questions ran with zero
+provider errors and zero learner-visible waiting.
 
 The PS requires these to be exact and to come from the live catalog, so they
 live in one place: [`config.py`](../config.py).
@@ -244,9 +292,28 @@ since the voice identity will not stay constant across a language switch.
 ## 6. Known limitations
 
 - Local Whisper is *not* truly streaming; we transcribe per VAD segment, so the
-  "≈300–500 ms" figure is end-of-speech to text, not incremental.
+  latency figure is end-of-speech to text, not incremental. Measured: 0.43–0.56 s
+  on `base`, ~1.8 s on `small`.
 - `heard_cursor` resolves to word granularity, not phoneme. Cutting mid-word
   rounds down to the last fully-spoken word.
 - The heard-cursor accuracy claim depends on Rime's `word_timestamps` being
   accurate; we validate them against measured playback duration rather than
-  trusting them outright.
+  trusting them outright. The HTTP path returns no timestamps at all, so the
+  cursor is currently derived by spreading words evenly over the clip's
+  duration — accurate to a word or two, which is the granularity the graph
+  rounds to anyway.
+- **No echo cancellation.** Without headphones the mic hears the tutor. The
+  echo guard and half-duplex mode make that survivable, not good: barge-in
+  degrades from ~0.2 ms to ~2 s, and a learner who repeats the tutor's own
+  words verbatim can still be misread as an echo. The real fix is WebRTC AEC
+  using the tutor's own PCM as the reference signal.
+- **Short utterances are unreliable at any model size.** "hi" has come back as
+  "はい", "the heart" as "The Hard", "class six" as "classics" and "Plastics".
+  Parsing is forgiving where it can be (misheard class words are accepted, and
+  a non-class reply no longer overwrites the topic), but a plausible wrong word
+  is indistinguishable from a right one.
+- **Section selection is positional.** Wikipedia sections are taken in order,
+  so a lesson can open on "Origins" or a cast list instead of an introduction.
+- **A failed topic switch loses the old lesson.** If the new topic cannot be
+  fetched, the graph resets to the topic question rather than resuming what was
+  playing.

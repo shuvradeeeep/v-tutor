@@ -1,6 +1,53 @@
 # Agent layer — gap-closing plan
 
-## Where things stand (2026-09-07, late night)
+## Where things stand (2026-09-08, after live sessions)
+
+Everything below this block was written before the system had been driven by a
+person with a microphone. It has now had a dozen live sessions, and this is the
+delta. Detail: [AGENTS_PLAN.md](AGENTS_PLAN.md) §10 (graph) and
+[STT_AND_INTENTS.md](STT_AND_INTENTS.md) (STT + classification).
+
+**Closed since 2026-09-07**
+
+| was open | now |
+|---|---|
+| ~2.4 s Whisper latency on CPU | **0.43–0.56 s** on `base`, ~1.8 s on `small`. One encoder pass instead of two, threads pinned to physical cores, greedy decoding. `scripts/bench_stt.py` re-measures it. |
+| Whisper `base` mishears topics | Still true — but the damage is contained: misheard class words are accepted (`classics` → class 6), a non-class reply can no longer overwrite the topic, and `small` is now affordable. |
+| Free Groq tier 429s → silent fallback to unsimplified text | `max_tokens` sized to measured work, real usage metered per model, 429 retried with the provider's own delay, background prep capped so it cannot eat the learner's minute. 15 min / 44 questions: **0 errors, 0 s learner-visible waiting**. |
+| No echo cancellation in local mode | Still no AEC, but a speaker-only session survives: self-echo transcripts are dropped, and the session falls back to half duplex (deferred barge-in) rather than the tutor answering itself. |
+| Follow-up memory two exchanges | Six with wording + every question asked this session. "And why is that?" and "what did I ask about first?" both work. |
+| Hindi entirely on hold | Partly live: Whisper mis-detecting spoken Hindi as Urdu is corrected before decoding (`WHISPER_ALLOWED_LANGUAGES`), and Hindi/Hinglish topic-change and pause phrasings are in the rules. The Hindi *voice* is still untested end to end. |
+| 152 offline tests | **210**, still offline, ~7 s. |
+
+**Found by live use, fixed**
+
+- Onboarding took any utterance as the answer: "hi" became a topic, "just stop"
+  became a lesson on *Just Stop Oil*, "I didn't understand the question" became
+  a Wikipedia lookup.
+- `navigate` could not change subject: "I wanted respiration, not reproduction"
+  answered "I couldn't find a part about that" and kept teaching reproduction.
+- Questions about the session ("how long will this take") were web-searched and
+  answered "about three to four months". Now a `meta` intent answered from the
+  lesson plan with no model call.
+- Polite pause requests ("can you pause for a while while I come?") were
+  answered and then ignored — the lesson carried on.
+- A grounded answer whose chunks did not contain the answer said "I'm not
+  sure" about facts the model knew.
+- A web result in Urdu was read aloud by the English voice.
+
+**Still open**
+
+- Section selection is positional, so a lesson can open on "Origins" or a cast
+  list instead of an introduction.
+- A failed topic switch loses the lesson that was playing.
+- Short utterances remain unreliable at any model size ("hi" → "はい").
+- Rime websocket streaming and word timestamps still not built; the heard
+  cursor is word-approximate.
+- Time to first beat is still ~9–12 s (Wikipedia + section pick + one localize).
+
+---
+
+## Where things stood (2026-09-07, late night)
 
 **Voice pipeline connected (see `docs/VOICE_PIPELINE.md`):** mic/LiveKit →
 Silero VAD → Whisper → graph → Rime coda → speakers/LiveKit track, in `voice/`

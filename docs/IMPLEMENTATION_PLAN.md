@@ -197,3 +197,58 @@ outbound track, not at the moment we called `clear()`.
 **If time runs short, cut Phase 4 scope, not Phase 3.** A tutor with a scripted
 lesson and a rigorously proven barge-in scores far better than a clever agent
 with an unmeasured voice layer.
+
+---
+
+## Phase 7 — Hardening against real sessions (2026-09-08)
+
+The plan above ends at "it works". This phase was not planned: it is what a
+dozen sessions with a real microphone demanded. Each item was found by
+listening, not by testing, and each one now has a regression test named after
+the session that produced it. Detail lives in
+[STT_AND_INTENTS.md](STT_AND_INTENTS.md) and [AGENTS_PLAN.md](AGENTS_PLAN.md) §10.
+
+**Measured, before and after**
+
+| | before | after |
+|---|---|---|
+| Whisper per utterance (`base`, int8, CPU) | 850–990 ms | **430–560 ms** |
+| Whisper per utterance (`small`) | — | ~1.8 s (cheaper than `base` was) |
+| Provider errors in a 15-min, 44-question session | 429s, silent quality loss | **0** |
+| Learner-visible waiting for LLM quota | up to 5 s per answer | **0 s** |
+| Offline tests | 152 | **210** |
+
+**What was done, in the order it mattered**
+
+1. **STT latency.** One encoder pass instead of two, `cpu_threads` = physical
+   cores, greedy decoding, model warmed at startup. `scripts/bench_stt.py`
+   A/Bs it in separate processes and asserts the fast path returns byte-identical
+   text to the plain faster-whisper API.
+2. **One config, two entrypoints.** `stt/agent.py` and `voice/audio_io.py` had
+   separate copies of the same env knobs (with different defaults). Both now
+   read `stt/settings.py`. Transcripts from either go to one
+   `stt/transcripts.csv` via `stt/transcripts.py`.
+3. **Offline demonstrability.** `scripts/voice_dry_run.py --sapi` renders the
+   learner with Windows TTS, and `TTS_PROVIDER=sapi` renders the tutor, so the
+   whole chain is checkable with no API keys at all.
+4. **Acoustic feedback.** Self-echo detection plus a half-duplex mode, because
+   without headphones the tutor answers its own voice and derails.
+5. **Onboarding guards.** Confusion, greetings and quit are handled before an
+   utterance is read as an answer; "which class?" only accepts a class.
+6. **Session memory.** Lesson, progress, interrupted sentence and conversation
+   history on every answer prompt; follow-ups resolved against it.
+7. **A `meta` intent** for questions about the session, answered from the
+   lesson plan with no model call.
+8. **Topic switching** as a first-class outcome of `navigate`, in English,
+   Hindi and Hinglish.
+9. **Provider budgets.** `max_tokens` sized to measured work, real usage
+   metered per model, 429 retried with the provider's own delay, background
+   prep held below the learner's share of each minute.
+10. **Language integrity.** Spoken Hindi detected as Urdu is re-decoded as
+    Hindi before the transcript exists; text in a script the voice cannot speak
+    is never read aloud.
+
+**Acceptance claim from Phase 3 still holds**, and the numbers behind it are
+unchanged: `vad_start.stop_ms` is 0.1–0.3 ms with headphones. In half-duplex
+mode (speakers) the stop is deliberately deferred by one Whisper pass, and that
+is the documented trade, not a regression.

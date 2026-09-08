@@ -1,9 +1,14 @@
 # v-tutor — Agent Layer Plan
 
-> **Status (2026-09-07):** built and passing — `agents/` (state, session, llm,
-> intent, material, retrieval, nodes, graph), 72 offline tests, and
-> `scripts/text_harness.py`. LLM providers are stubbed until the model choice
-> is made; web search is stubbed until DuckDuckGo is wired. Audio layer next.
+> **Status (2026-09-08):** running end to end on real audio — mic → Silero →
+> Whisper → this graph → Groq → Rime → speakers. 210 offline tests. LLM
+> providers and web search are live (`groq` + `ddgs`); the `stub` provider still
+> works and every node keeps its deterministic fallback.
+>
+> Section 10 records what live sessions changed: a new `meta` intent, a
+> topic-switch exit from `navigate`, onboarding guards, session memory, and
+> provider rate limiting. The STT half is in
+> [STT_AND_INTENTS.md](STT_AND_INTENTS.md).
 
 LangGraph, one thread per session, checkpointed. The graph's job is **not** to be
 clever. It is to guarantee one thing: *what the learner hears always matches the
@@ -46,7 +51,7 @@ from typing import Annotated, Literal, TypedDict
 import operator
 
 Intent = Literal["question", "explain", "navigate", "command",
-                 "session", "backchannel", "unknown"]
+                 "session", "backchannel", "meta", "unknown"]
 
 class Cursor(TypedDict):
     beat_index: int      # which lesson beat
@@ -86,7 +91,9 @@ class TutorState(TypedDict):
     session_cmd: Literal["pause", "continue", "restart", "quit", None]
     nav_target: dict | None         # {"kind": "prev"|"next"|"topic"|"index", "value": ...}
     queued_request: str | None      # second clause of "do A and B"
-    recent_exchanges: list[dict]    # last 2 {q, a}; context for "and why?"
+    recent_exchanges: list[dict]    # last 6 {q, a}; context for "and why?"
+    asked_questions: list[str]      # every question this session, text only
+    topic_switch: bool              # navigate meant "teach something else"
     retrieved: list[dict]
     retrieval_score: float
     answer: str
@@ -322,7 +329,7 @@ g.add_conditional_edges("handle_interrupt", route_after_interrupt, {
     "lesson":              "classify_intent",
 })
 
-# --- seven intents ---
+# --- eight intents (meta added 2026-09-08; see section 10) ---
 g.add_conditional_edges("classify_intent", route_intent, {
     "unknown":     "clarify",
     "session":     "session_handler",
@@ -330,6 +337,7 @@ g.add_conditional_edges("classify_intent", route_intent, {
     "navigate":    "find_section",
     "explain":     "explain",
     "question":    "qa_retrieve",
+    "meta":        "session_status",     # "how long will this take?"
     "backchannel": "resume_controller",
 })
 
@@ -475,8 +483,11 @@ real nodes one at a time, retrieval first, LLM nodes last.
 Written down deliberately — the PS rewards disclosed limits over hidden ones.
 
 - Compound requests are handled two-deep. "A and B" works; "A, B and C" drops C.
-- Follow-up memory is two exchanges. "And why?" works; "what did you say five
-  questions ago?" does not.
+  *(2026-09-08: sentence boundaries also split, so "Let's continue. Let's start
+  with respiration." acts on both clauses.)*
+- ~~Follow-up memory is two exchanges.~~ *(2026-09-08: raised to six with full
+  wording, plus the questions alone for the whole session, so "what did I ask
+  about first?" works. See section 10.)*
 - `clarify` asks once, then carries on. A tutor that keeps saying "pardon?" is
   worse than one that resumes.
 - Resume is accurate to the sentence, not the word: we always round back to a
@@ -492,3 +503,116 @@ Written down deliberately — the PS rewards disclosed limits over hidden ones.
 - Topic mode is only as good as Wikipedia's coverage of the topic in the chosen
   language. Hindi Wikipedia is thinner than English; when it has no article we
   fall back to English and translate, and say so aloud.
+
+---
+
+## 10. What changed after the first live sessions (2026-09-08)
+
+The plan above survived contact with a microphone. These are the changes that
+did not, each one traceable to a transcript in `evidence/`. The STT side of the
+same story is in [STT_AND_INTENTS.md](STT_AND_INTENTS.md).
+
+### A new intent: `meta`
+
+Questions about the **session** rather than the subject. *"Can you give me an
+approximate estimate of how long will the session go?"* retrieved at 0.121,
+missed, went to a web search for "how long will this teaching go on", and was
+answered **"about three to four months"** — the length of a teaching
+practicum.
+
+`session_status` answers from `lesson_plan`, `beat_index` and `grade`: no model
+call, no tokens, and it cannot be wrong. It covers length/progress ("how much
+is left", "are we almost done"), topic ("what are we studying") and identity
+("who are you"). It is routed **before** `question` because these look exactly
+like questions.
+
+### `navigate` gained a second exit
+
+`find_section` only ever searched the current lesson, so *"I wanted respiration,
+not reproduction"* answered "I couldn't find a part about that. Let's carry on"
+and kept teaching the wrong subject. `route_nav` now returns `switch`, which
+re-enters `fetch_material` for a whole new lesson, keeping the class level.
+
+The detector is deliberately narrow — it must not hijack in-lesson navigation:
+
+| utterance | decision |
+|---|---|
+| "go to the part about valves" / "tell me more about valves" | inside this lesson |
+| "I wanted respiration, **not** reproduction" | new lesson |
+| "**change the topic to** volleyball" / "let's **start with** football" | new lesson |
+| "I want to learn football **now**" | new lesson |
+| "topic change krte hai mujhe X ke bare me janna hai" | new lesson |
+
+The topic is taken from **after** the switch marker. Anchored at the start of
+the sentence it produced "can we switch the volleyball now", which Wikipedia
+resolved to *Dead or Alive Xtreme*. When a named topic is genuinely absent and
+the wording was not an explicit switch, the tutor now says how to switch
+instead of "let's carry on".
+
+### Onboarding stopped treating every noise as an answer
+
+Before a lesson exists there was no classification at all — whatever arrived
+was the answer. That turned "hi" into a topic (so the tutor asked which class
+it was for), "I didn't understand the question" into a Wikipedia lookup, and
+"just stop" into a lesson about **Just Stop Oil**.
+
+`_onboarding_interrupt` runs three whole-utterance guards before an answer is
+read: quit, confusion, greeting. Confusion and greetings re-ask the outstanding
+question — the topic, or the class if the topic is known — without consuming the
+turn or counting as a failed attempt.
+
+Separately, while the tutor is asking *"which class?"*, **only a class answers
+it**. A non-class reply used to overwrite the topic, so a misheard "class six"
+→ "Plastics" silently replaced "the heart" and the lesson became plastic. After
+two failed asks the lesson starts without a class rather than looping.
+
+### Session memory
+
+`_context_block` is the one prompt section every answering node shares:
+lesson + class, sections covered, the sentence the learner interrupted, the
+questions asked earlier, and the recent exchanges. It goes to `compose_answer`,
+`direct_answer`, `explain` (which previously saw *only* the interrupted
+sentence) and the intent classifier's LLM branch.
+
+Two tiers, for cost: 6 exchanges with wording (answers trimmed to 200 chars),
+and the questions alone for the whole session. Without "you were just saying",
+*"what did you say about British?"* was answered from the previous exchange —
+a question about a TV series.
+
+### Answers stopped saying "I'm not sure" about things they knew
+
+Two causes, both fixed:
+
+1. `is_follow_up` capped at five words, so "and which one is the strongest"
+   (six) was retrieved standalone, matched nothing, and got the not-sure line.
+   The cap is eight, plus a referential rule ("that one", "the strongest").
+2. The grounded prompt said *"use only the material given; if it does not
+   answer the question, say you're not sure"* — so a retrieval that scored
+   0.547 (confident enough to route there, not good enough to contain the
+   answer) produced "I'm not sure" about a fact the model plainly knew. It now
+   returns a `NOTES_MISS` sentinel and gets one general-knowledge attempt
+   before the extractive fallback. Visible as `answer_mode: notes_miss`.
+
+Web snippets are trimmed to two sentences and are not read aloud at all if they
+are in a script the voice cannot speak — a web result in Urdu was once read out
+by the English voice.
+
+### Provider rate limits
+
+`max_tokens` is *reserved* against a tokens-per-minute allowance, not just
+billed on use: a 195-token prompt with `max_tokens=1200` was charged as ~1198.
+`agents/llm.py` now sizes it to measured work (400 for answers, which use ~50;
+800 for section rewrites, which use ~220), meters actual usage per model,
+retries a 429 with the provider's own suggested delay, and reserves a slice of
+each minute for the learner-facing path so background section prep cannot eat
+it. Before this, a 429 returned `""` and every node fell back to its
+deterministic path — the tutor got quietly worse mid-lesson with no error
+anywhere.
+
+Measured: 15 minutes, 44 questions, 0 provider errors, 0 s of learner-visible
+waiting, ~2,600 of 8,000 tokens/minute.
+
+### Tests
+
+`tests/` is now **210 tests**, still offline and ~7 s. Every behaviour above has
+a regression test named after the session that produced it.

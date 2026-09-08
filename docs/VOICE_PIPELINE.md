@@ -134,7 +134,8 @@ UI that wants captions.
 | Evidence CSV (every event, ms since start) | `evidence/<session>.csv` — `vad_start.stop_ms`, `transcript.whisper_ms`, `transcript.since_vad_start_ms`, `tts.synth_ms`, `fence_drop`, `tts_drop_stale`, `playback_confirmed` |
 | Session state (resumable) | `sessions.db` (SQLite); rerun with the same `--session` to resume |
 | Rime audio cache | `.cache/tts/*.pcm` — fixed phrases cost nothing after the first run |
-| Offline proof, no keys | `..\venv\Scripts\python -m pytest tests -q` (152 tests; `tests/test_voice_bridge.py` covers the bridge) |
+| Transcripts (both entrypoints) | `stt/transcripts.csv` — one row per utterance with `whisper_ms` and `total_latency_ms`; follow a live session with `Get-Content -Wait stt\transcripts.csv` |
+| Offline proof, no keys | `.\.venv\Scripts\python -m pytest tests -q` (210 tests, ~7 s; `tests/test_voice_bridge.py` covers the bridge, `tests/test_llm_budget.py` the rate limiting) |
 
 ---
 
@@ -147,6 +148,20 @@ UI that wants captions.
 | Tutor joins, never hears you | browser mic blocked or muted | allow mic in the Meet UI; worker subscribes to audio only |
 | Tutor silent, console shows `tts_fallback` | Rime call failed | check `RIME_API_KEY`, network |
 | Barge-ins with nobody talking | VAD picks up room noise | `VAD_MIN_SPEECH_DURATION=0.3`, better mic |
+
+---
+
+## 4c. Local-mode troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Everything logs correctly, `tts` shows real `audio_s`, but you hear nothing | audio went to a device you are not listening to — Windows routes to the headphone jack by default on this hardware | the startup banner prints `audio out: [N] <name>`; find the one you can hear with `python scriptsudio_check.py --play --all`, then `--output-device N` |
+| Tutor answers its own voice, drifts onto strange topics | no headphones: the mic hears the tutor | wear headphones, or run `--no-headphones` (half duplex). After two multi-word echoes the session switches itself and logs a warning |
+| Cannot interrupt any more, mid-session | half duplex switched on after echoes | headphones + restart, or `ECHO_AUTO_HALF_DUPLEX=0` to disable the automatic switch |
+| Your one-word reply is ignored | it matched a run of words the tutor just said | instructions (continue/stop/pause/repeat) are exempt from the echo guard; anything else, say two or three words |
+| Hindi comes out in Arabic script, answers are nonsense | Whisper detected Urdu | fixed: `WHISPER_ALLOWED_LANGUAGES=en,hi` re-decodes it as Hindi before the transcript exists |
+| Topic silently becomes something else | a misheard reply to "which class?" | fixed: only a class answers that question; misheard forms (`classics`, `glass 6`) are accepted as classes |
+| `LLM ... 429` / answers suddenly get worse | provider tokens-per-minute limit | already retried automatically; if persistent, `RECENT_EXCHANGES_KEEP=3` or a smaller `LLM_STRONG_MODEL`. `LLM_TPM_LIMIT` should match your tier |
 
 ## 5. What the dry run measured (2026-09-07, this laptop, CPU)
 
