@@ -46,6 +46,9 @@ transcriber = WhisperTranscriber(
     beam_size=settings.WHISPER_BEAM_SIZE,
     cpu_threads=settings.WHISPER_CPU_THREADS,
     single_pass=settings.WHISPER_SINGLE_PASS,
+    allowed_languages=settings.WHISPER_ALLOWED_LANGUAGES,
+    language_aliases=settings.WHISPER_LANGUAGE_ALIASES,
+    language_fallback=settings.WHISPER_LANGUAGE_FALLBACK,
 )
 if settings.WHISPER_WARMUP:
     # Pay the lazy-init cost now instead of on the first real utterance.

@@ -307,3 +307,29 @@ def test_repeated_echoes_switch_to_half_duplex_by_themselves():
     assert bridge.half_duplex is True
     assert any(e == "half_duplex_on" for e, _ in events)
     bridge.close()
+
+
+def test_an_invited_one_word_reply_is_not_treated_as_an_echo():
+    """The tutor said "say continue when you're ready", the learner said
+    "Continue." -- it was dropped as an echo, the lesson stayed paused, and it
+    counted towards disabling barge-in for the rest of the session."""
+    from voice.bridge import looks_like_echo
+    spoken = "Okay, pausing. Say continue when you're ready."
+    assert not looks_like_echo("Continue.", spoken)
+    assert not looks_like_echo("continue please", spoken)
+    assert not looks_like_echo("stop", "Say stop when you want to finish.")
+    # ...while genuine echoes of ordinary words are still caught
+    assert looks_like_echo("sure.", "I'm not sure.")
+    assert looks_like_echo("okay pausing", spoken)          # the order it was said in
+
+
+def test_one_word_echoes_do_not_disable_barge_in():
+    import config
+    bridge, player, spoken, events = build()
+    bridge.start()
+    assert bridge.wait_idle(20)
+    say(bridge, "English")
+    for _ in range(config.ECHO_AUTO_HALF_DUPLEX + 2):
+        say(bridge, spoken[-1].split()[-1])        # one-word echo, over and over
+    assert bridge.half_duplex is False, "a single word should never cost barge-in"
+    bridge.close()

@@ -33,7 +33,7 @@ import re
 from collections import deque
 
 import config
-from agents import llm
+from agents import intent, llm
 from agents.evidence import EvidenceWriter
 from agents.gap_filler import GapFiller
 from agents.graph import TutorRunner, make_checkpointer
@@ -74,7 +74,27 @@ def looks_like_echo(heard: str, spoken: str) -> bool:
         return False
     if len(h) == 1 and len(h[0]) < 4:
         return False              # "a", "is" -- too common to blame on the speaker
+    if is_reply_word(heard):
+        # The tutor says "say continue when you're ready" and the learner says
+        # "continue" -- an invited reply, not an echo. Dropping it left the
+        # lesson paused and, worse, counted towards disabling barge-in.
+        return False
     return any(s[i:i + len(h)] == h for i in range(len(s) - len(h) + 1))
+
+
+def is_reply_word(text: str) -> bool:
+    """
+    A short utterance the rules recognise as an instruction to the tutor.
+
+    Backchannels are deliberately NOT included: an echoed "sure" and a real
+    "sure" both mean "carry on", so nothing is lost by treating it as an echo,
+    and the echo counter stays honest. Losing a "continue" or a "stop" is a
+    different matter -- that leaves the lesson stuck.
+    """
+    if len(_words(text)) > 3:
+        return False
+    c = intent.classify_rules(text)
+    return bool(c and (c.session_cmd or c.command))
 
 
 class GraphWorker:
@@ -148,6 +168,7 @@ class VoiceBridge:
         self._t_speech_start: float | None = None
         self._recent_speech: deque[tuple[float, str]] = deque(maxlen=6)   # echo guard
         self.echo_drops = 0
+        self.long_echo_drops = 0
         # Headphones: full duplex, barge-in works. Speakers: the mic hears the
         # tutor, so listening while speaking has to stop -- either because the
         # caller said so, or because we caught enough echoes to be sure.
@@ -255,6 +276,12 @@ class VoiceBridge:
         deferred, self._suppressed_start = self._suppressed_start, False
         if (echoed := self._is_self_echo(text)):
             self.echo_drops += 1
+            # Only multi-word echoes count towards the half-duplex switch: a
+            # one-word match is the kind that turns out to be a real reply, and
+            # disabling barge-in for a whole session off the back of one is far
+            # too aggressive. Counted before `text` is cleared below.
+            if len(_words(text)) >= 3:
+                self.long_echo_drops += 1
             self._emit("echo_drop", heard=text, spoke=echoed[:60], deferred=deferred)
             logger.info("echo: dropped %r (tutor said %r)", text, echoed[:60])
             if deferred:
@@ -263,14 +290,14 @@ class VoiceBridge:
             # graph reads that as a backchannel and picks the lesson back up.
             text = ""
             if (not self.half_duplex and config.ECHO_AUTO_HALF_DUPLEX
-                    and self.echo_drops >= config.ECHO_AUTO_HALF_DUPLEX):
+                    and self.long_echo_drops >= config.ECHO_AUTO_HALF_DUPLEX):
                 # Repeated echoes mean there are no headphones on. Stop
                 # listening while speaking, or the lesson stutters forever:
                 # every beat gets interrupted by itself and replayed.
                 self.half_duplex = True
-                self._emit("half_duplex_on", after_echoes=self.echo_drops)
+                self._emit("half_duplex_on", after_echoes=self.long_echo_drops)
                 logger.warning("mic is hearing the tutor (%d echoes): barge-in disabled for this "
-                               "session. Use headphones to keep it.", self.echo_drops)
+                               "session. Use headphones to keep it.", self.long_echo_drops)
         with self._lock:
             interrupted = self._interrupted
             self._interrupted = False

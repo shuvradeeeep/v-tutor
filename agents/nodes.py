@@ -23,7 +23,8 @@ from langgraph.types import interrupt
 
 import config
 from agents import intent as intent_mod
-from agents.material import DisambiguationError, make_beats, make_chunks, split_sentences, word_count
+from agents.material import (DisambiguationError, make_beats, make_chunks, readable_in,
+                             split_sentences, word_count)
 from agents.retrieval import Doc, HybridRetriever, best_sentences
 from agents.session import Deps
 from agents.strings import t
@@ -837,8 +838,11 @@ class TutorNodes:
                 sents = best_sentences(top["text"], utter, n=2)
                 offer = self._T(state, "go_back_offer", title=top.get("section_title") or "")
                 answer = f"{self._T(state, 'from_notes')} {sents} {offer}"
-            elif top:
-                answer = f"{self._T(state, 'from_web')} {top['text']}"
+            elif top and readable_in(top["text"], lang):
+                # Two sentences, not the whole snippet: this is read aloud, and
+                # a raw web result runs to a paragraph. The script check keeps
+                # the voice from being handed an alphabet it cannot speak.
+                answer = f"{self._T(state, 'from_web')} {best_sentences(top['text'], utter, n=2)}"
             else:
                 answer = self._T(state, "not_found_answer")
         mode = "notes" if state.get("retrieval_score", 0.0) >= config.RETRIEVAL_TAU else "web"

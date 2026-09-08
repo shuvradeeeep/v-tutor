@@ -53,6 +53,20 @@ WHISPER_BEAM_SIZE = _i("WHISPER_BEAM_SIZE", 1)
 # One encoder pass instead of two (see stt/transcriber.py). Set 0 to force the
 # plain faster-whisper API -- ~2x slower, identical output.
 WHISPER_SINGLE_PASS = _b("WHISPER_SINGLE_PASS", True)
+# Languages the tutor can actually teach in. Spoken Hindi is acoustically
+# almost identical to Urdu, and Whisper regularly labels it "ur" and writes the
+# transcript in Arabic script -- which then goes to retrieval, to a web search,
+# and comes back as a wall of Urdu text read out by an English voice. Anything
+# detected outside this set is decoded again, pinned to the mapped language.
+WHISPER_ALLOWED_LANGUAGES = set(
+    _s("WHISPER_ALLOWED_LANGUAGES", "en,hi").replace(" ", "").split(","))
+# What to re-decode a rejected language as. Urdu/Punjabi/Nepali/Sanskrit heard
+# from a Hindi speaker are Hindi.
+WHISPER_LANGUAGE_ALIASES = {
+    "ur": "hi", "pa": "hi", "ne": "hi", "sa": "hi", "mr": "hi", "bh": "hi",
+}
+# Fallback when the detected language is not allowed and has no alias above.
+WHISPER_LANGUAGE_FALLBACK = _s("WHISPER_LANGUAGE_FALLBACK", "en")
 # Run a throwaway inference at startup so the first learner sentence doesn't
 # pay for lazy model init.
 WHISPER_WARMUP = _b("WHISPER_WARMUP", True)

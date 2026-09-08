@@ -62,6 +62,9 @@ class WhisperTranscriber:
         beam_size: int = 1,
         cpu_threads: int = 0,
         single_pass: bool = True,
+        allowed_languages: set[str] | None = None,
+        language_aliases: dict[str, str] | None = None,
+        language_fallback: str = "en",
     ):
         """
         Loads the faster-whisper model into memory once upon startup.
@@ -81,6 +84,10 @@ class WhisperTranscriber:
         )
         self.beam_size = beam_size
         self.single_pass = single_pass
+        # Empty set = accept whatever Whisper detects.
+        self.allowed_languages = set(allowed_languages or ())
+        self.language_aliases = dict(language_aliases or {})
+        self.language_fallback = language_fallback
         self._tokenizers: dict[str, Tokenizer] = {}
         self._options: dict[str, TranscriptionOptions] = {}
 
@@ -148,11 +155,30 @@ class WhisperTranscriber:
 
         token, probability = model.model.detect_language(encoder_output)[0][0]
         language = token[2:-2]  # "<|hi|>" -> "hi"
+        language = self._allowed(language)
 
         tokenizer, options = self._for_language(language)
         segments = model.generate_segments(features, tokenizer, options, False, encoder_output)
         text = " ".join(seg.text.strip() for seg in segments).strip()
         return text, language, probability
+
+    def _allowed(self, language: str) -> str:
+        """
+        Map a detected language the tutor cannot teach onto one it can.
+
+        Spoken Hindi is regularly detected as Urdu, and the transcript then
+        comes back in Arabic script -- unusable for retrieval, for the lesson,
+        and for an English or Hindi voice. Because the fix happens before
+        decoding, and the encoder output is reused, correcting it is free: the
+        same audio is simply decoded with the right language token.
+        """
+        if not self.allowed_languages or language in self.allowed_languages:
+            return language
+        mapped = self.language_aliases.get(language, self.language_fallback)
+        if mapped not in self.allowed_languages:
+            mapped = next(iter(self.allowed_languages))
+        logger.info("whisper detected %r, decoding as %r", language, mapped)
+        return mapped
 
     def _public_api(self, audio: np.ndarray) -> tuple[str, str, float]:
         segments, info = self.model.transcribe(
@@ -161,8 +187,14 @@ class WhisperTranscriber:
             beam_size=self.beam_size,
             **_DECODE_OVERRIDES,
         )
+        language = self._allowed(info.language)
+        if language != info.language:
+            # Costs a whole second pass here; the single-encode path corrects
+            # the language before decoding and pays nothing.
+            segments, info = self.model.transcribe(
+                audio, language=language, beam_size=self.beam_size, **_DECODE_OVERRIDES)
         text = " ".join(seg.text.strip() for seg in segments).strip()
-        return text, info.language, info.language_probability
+        return text, language, info.language_probability
 
     # ------------------------------------------------------------- inference
     def transcribe_array(self, audio: np.ndarray) -> tuple[str, str, float, float]:

@@ -232,3 +232,64 @@ def test_initials_do_not_end_a_sentence():
     out = split_sentences("William G. Morgan created volleyball in 1895. He was a director.")
     assert out[0].startswith("William G. Morgan created")
     assert len(out) == 2
+
+
+# --- Hindi / Hinglish topic changes ---------------------------------------
+# Spoken Hindi came back from Whisper in Urdu script, was retrieved (score
+# 0.006), web-searched, and answered with a paragraph of Urdu prose read out
+# by an English voice. The transcription is fixed in stt/transcriber.py; these
+# cover the phrasings themselves.
+
+def test_hinglish_topic_change_is_a_switch():
+    from agents.intent import classify_rules
+    cases = {
+        "topic change krte hai mujhe virat kohli ke bare me janna hai": "virat kohli",
+        "topic change karte hain mujhe photosynthesis ke baare mein janna hai": "photosynthesis",
+        "chalo topic badal do mujhe cricket ke bare me janna hai": "cricket",
+        "mujhe virat kohli ke bare me janna hai": "virat kohli",
+        "topic change karo volleyball": "volleyball",
+    }
+    for utter, wanted in cases.items():
+        c = classify_rules(utter)
+        assert c and c.intent == "navigate", utter
+        assert c.nav_target == {"kind": "topic", "value": wanted}, (utter, c.nav_target)
+
+
+def test_devanagari_topic_change_is_a_switch():
+    from agents.intent import classify_rules
+    c = classify_rules("मुझे विराट कोहली के बारे में जानना है")
+    assert c and c.nav_target == {"kind": "topic", "value": "विराट कोहली"}
+
+
+def test_hindi_confusion_and_questions_are_not_topic_changes():
+    from agents.intent import classify_rules
+    assert classify_rules("mujhe samajh nahi aaya").intent == "explain"
+    assert classify_rules("iska matlab kya hai").intent == "explain"
+    assert classify_rules("हृदय में कितने कक्ष होते हैं").intent == "question"
+
+
+def test_a_language_the_tutor_cannot_teach_is_decoded_as_one_it_can():
+    """Spoken Hindi is routinely detected as Urdu; the transcript then arrives
+    in Arabic script and is useless to every stage after it."""
+    from stt.transcriber import WhisperTranscriber
+    t = WhisperTranscriber.__new__(WhisperTranscriber)
+    t.allowed_languages = {"en", "hi"}
+    t.language_aliases = {"ur": "hi", "pa": "hi"}
+    t.language_fallback = "en"
+    assert t._allowed("ur") == "hi"
+    assert t._allowed("pa") == "hi"
+    assert t._allowed("hi") == "hi"
+    assert t._allowed("en") == "en"
+    assert t._allowed("ja") == "en"          # no alias: the fallback
+    t.allowed_languages = set()              # unrestricted
+    assert t._allowed("ur") == "ur"
+
+
+def test_unspeakable_scripts_are_not_read_aloud():
+    from agents.material import readable_in
+    urdu = "کولیسٹرول ہمارے جسم اور، ہائی کولیسٹرول والے افراد کو کم"
+    assert not readable_in(urdu, "en")
+    assert not readable_in(urdu, "hi")
+    assert readable_in("The heart has four chambers.", "en")
+    assert readable_in("हृदय में चार कक्ष होते हैं।", "hi")
+    assert readable_in("The heart has four chambers.", "hi")   # Hinglish is fine

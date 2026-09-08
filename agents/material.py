@@ -31,6 +31,32 @@ _LETTERS = re.compile(r"[^\W\d_]", re.UNICODE)
 _DANDA = "।"
 
 
+_SPEAKABLE_SCRIPTS = {
+    # Scripts each lesson language's voice can actually read out. Hindi lessons
+    # accept Latin too, because Whisper transcribes spoken Hindi in either.
+    "en": re.compile(r"[A-Za-z]"),
+    "hi": re.compile(r"[ऀ-ॿ A-Za-z]"),
+}
+
+
+def readable_in(text: str, lang: str, min_ratio: float = 0.8) -> bool:
+    """
+    Is `text` written in a script the voice for `lang` can read aloud?
+
+    A web search for a question Whisper had transcribed in Urdu script came
+    back as Urdu prose, which the tutor then read out with an English voice --
+    unusable, and unspeakable. Unknown languages are allowed through; this only
+    rejects text that is clearly in the wrong alphabet.
+    """
+    rx = _SPEAKABLE_SCRIPTS.get(lang)
+    if rx is None:
+        return True
+    letters = _LETTERS.findall(text)
+    if not letters:
+        return True
+    return sum(bool(rx.match(c)) for c in letters) / len(letters) >= min_ratio
+
+
 def detect_lang(text: str) -> str:
     """'hi' if a meaningful share of letters are Devanagari, else 'en'."""
     letters = _LETTERS.findall(text)

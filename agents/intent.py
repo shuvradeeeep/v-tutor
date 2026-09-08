@@ -168,10 +168,19 @@ _FILLER_EN = re.compile(
     re.IGNORECASE)
 _FILLER_HI = ["मुझे", "पढ़ना चाहता हूँ", "पढ़ना चाहती हूँ", "पढ़ना है", "पढ़ाओ", "पढ़ाइए",
               "सिखाओ", "सिखाइए", "के बारे में", "के लिए", "विषय", "चाहिए", "आज", "हम", "पढ़ेंगे",
-              "पढ़ें", "कृपया", "का पाठ", "पाठ"]
+              "पढ़ें", "कृपया", "का पाठ", "पाठ",
+              # "जानना है" ("I want to know") wraps a topic the same way
+              # "पढ़ना है" does, and was being left in the topic name.
+              "जानना चाहता हूँ", "जानना चाहती हूँ", "जानना है", "बताओ", "बताइए", "अब"]
 _FILLER_HINGLISH = re.compile(
     r"\b(?:mujhe|padhna hai|padhna chahta hoon|padhna chahti hoon|padhao|padhaiye|sikhao|"
-    r"ke baare mein|ke bare me|ke liye|vishay|chahiye|aaj|hum|padhenge|kripya|ka paath|paath)\b",
+    r"ke baare mein|ke bare me|ke liye|vishay|chahiye|aaj|hum|padhenge|kripya|ka paath|paath|"
+    # Whisper spells romanised Hindi inconsistently, so the vowels are loose.
+    r"ke\s+baa?re?\s+m[ei]i?n|jaa?n+a\s+hai|jaa?n+a\s+chahta\s+hoon|jaa?n+a\s+chahti\s+hoon|"
+    r"batao|bataiye|abhi|ab|"
+    # The request wrapper itself: "topic change krte hai", "badal do", "chalo".
+    r"k[ar]?rte\s+ha[ei]n?|karte\s+ha[ei]n?|karna\s+hai|karo|kar\s+do|kar\s+lo|chalo|chaliye|"
+    r"topic|change|badal\w*)\b",
     re.IGNORECASE)
 
 
@@ -531,12 +540,25 @@ _SWITCH_MARKER = re.compile(
     # how valves work" as questions inside the current lesson.
     r"\b(?:i\s+want\s+to|i'?d\s+like\s+to|can\s+we|let'?s)\s+(?:learn|study|do|read)\s+"
     r"(?!more\b|about\b|how\b|what\b|why\b|when\b|it\b|this\b|that\b)|"
+    # Hinglish, the way it is actually spoken: "topic change krte hai",
+    # "chalo topic badal do". Matching here (rather than only in the Hindi
+    # substring list) also means the topic is taken from AFTER the marker.
+    r"\b(?:topic|lesson|chapter)\s+(?:change|badal)\w*|\b(?:change|badal)\s+kar\w*|"
     r"\b(?:topic|lesson)\s+badal|\bbadal\s+do\b|\bdusra\s+(?:topic|chapter)\b", re.IGNORECASE)
 # "I wanted X, not Y" -- the tutor misheard the topic and is teaching the wrong one.
 _SWITCH_CORRECTION = re.compile(
     r"\bi\s+(?:wanted|want|meant|asked for|said)\b.*?\bnot\b|"
     r"\bnot\s+(?:this|that)\b.*\bi\s+(?:wanted|want|meant)\b", re.IGNORECASE)
-_TOPIC_SWITCH_HI = ("बदल दो", "टॉपिक बदल", "दूसरा विषय", "यह नहीं", "ये नहीं", "की जगह")
+_TOPIC_SWITCH_HI = ("बदल दो", "टॉपिक बदल", "दूसरा विषय", "यह नहीं", "ये नहीं", "की जगह",
+                    # "मुझे X के बारे में जानना है" = "I want to know about X",
+                    # i.e. a new subject. The topic sits BEFORE the postposition,
+                    # so no marker-cut is applied for these -- the filler
+                    # stripper in parse_topic_grade handles them.
+                    "के बारे में जानना", "के बारे में पढ़ना", "पढ़ना है", "पढ़ाना शुरू")
+_TOPIC_SWITCH_HINGLISH = re.compile(
+    # "ke bare me", "ke baare mein", "ke bare mai" -- Whisper spells it every way.
+    r"\bke\s+baa?re?\s+m[ei]i?n?\s+jaa?n+a\b|\bpadhna\s+hai\b|"
+    r"\btopic\s+(?:badal|change)\w*", re.IGNORECASE)
 
 # Everything in front of the topic once the learner has asked to switch.
 _SWITCH_LEAD = re.compile(
@@ -556,7 +578,8 @@ _SWITCH_TAIL = re.compile(r"\s*\b(?:now|please|instead|today|ok(?:ay)?|then|next
 def is_topic_switch(utter: str) -> bool:
     """The learner wants a different lesson, not a different part of this one."""
     text = _norm(utter)
-    return bool(_SWITCH_MARKER.search(text) or _SWITCH_CORRECTION.search(text)) \
+    return bool(_SWITCH_MARKER.search(text) or _SWITCH_CORRECTION.search(text)
+                or _TOPIC_SWITCH_HINGLISH.search(text)) \
         or _hi(text, *_TOPIC_SWITCH_HI)
 
 

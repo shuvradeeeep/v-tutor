@@ -43,7 +43,10 @@ class SpeechInput:
             self._transcriber = WhisperTranscriber(
                 model_size=settings.WHISPER_MODEL_SIZE, device=settings.WHISPER_DEVICE,
                 compute_type=settings.WHISPER_COMPUTE_TYPE, beam_size=settings.WHISPER_BEAM_SIZE,
-                cpu_threads=settings.WHISPER_CPU_THREADS, single_pass=settings.WHISPER_SINGLE_PASS)
+                cpu_threads=settings.WHISPER_CPU_THREADS, single_pass=settings.WHISPER_SINGLE_PASS,
+                allowed_languages=settings.WHISPER_ALLOWED_LANGUAGES,
+                language_aliases=settings.WHISPER_LANGUAGE_ALIASES,
+                language_fallback=settings.WHISPER_LANGUAGE_FALLBACK)
             logger.info("whisper %s loaded in %.1fs", settings.WHISPER_MODEL_SIZE, time.perf_counter() - t)
             if settings.WHISPER_WARMUP:
                 # load() is called from prewarm / before the tutor speaks, so
