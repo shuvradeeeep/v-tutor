@@ -1,0 +1,4 @@
+timestamp,elapsed_ms,session,event,payload
+2026-09-08T18:46:52,6217,local-1788873406,tts,"{""turn"": 0, ""words"": 10, ""synth_ms"": 1, ""audio_s"": 2.89, ""cached"": true}"
+2026-09-08T18:46:52,6217,local-1788873406,speak,"{""turn"": 0, ""kind"": ""system"", ""lang"": ""en"", ""text"": ""Great. What shall we study today, and for which class?""}"
+2026-09-08T18:46:55,9194,local-1788873406,playback_confirmed,"{""turn"": 0}"

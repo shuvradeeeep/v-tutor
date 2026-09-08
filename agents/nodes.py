@@ -90,6 +90,60 @@ class TutorNodes:
     def _lang_name(code: str) -> str:
         return config.LANG_NAMES.get(code, code)
 
+    # ---------------------------------------------------------- session memory
+    # Every answer prompt gets the same two things: what has already been said
+    # in this session, and how far the lesson has got. Without them the tutor
+    # answered each question as if it were the first, re-explaining terms it
+    # had just explained and ignoring "the other one".
+    # Answers are trimmed: the free Groq tier allows 8000 tokens/minute, and a
+    # prompt that carries six full answers plus the material can trip the limit
+    # mid-lesson -- which shows up as the tutor suddenly answering badly,
+    # because a failed LLM call falls back to the deterministic path.
+    HISTORY_ANSWER_CHARS = 200
+
+    @classmethod
+    def _history(cls, state: dict, keep: int | None = None) -> str:
+        recent = (state.get("recent_exchanges") or [])[-(keep or config.RECENT_EXCHANGES_KEEP):]
+        return "\n".join(f"Q: {e['q']}\nA: {e['a'][:cls.HISTORY_ANSWER_CHARS]}" for e in recent)
+
+    @staticmethod
+    def _covered(state: dict) -> str:
+        """Section titles read out so far, in order, including the current one."""
+        plan = state.get("lesson_plan") or []
+        if not plan:
+            return ""
+        upto = plan[:min(state.get("beat_index", 0), len(plan) - 1) + 1]
+        titles = [b.get("section_title") for b in upto if b.get("section_title")]
+        return ", ".join(dict.fromkeys(titles))
+
+    def _remember(self, state: dict, question: str, answer: str) -> dict:
+        """
+        Memory updates after an answer. The windowed exchanges carry the
+        wording; `asked_questions` keeps the questions alone, so an hour-long
+        session still knows what was asked twenty minutes ago without paying
+        for the full text of it in every prompt.
+        """
+        ex = (state.get("recent_exchanges") or []) + [{"q": question, "a": answer}]
+        asked = (state.get("asked_questions") or []) + [question]
+        return {"recent_exchanges": ex[-config.RECENT_EXCHANGES_KEEP:],
+                "asked_questions": asked[-config.ASKED_QUESTIONS_KEEP:]}
+
+    def _context_block(self, state: dict, keep: int | None = None) -> str:
+        """The shared prompt section: lesson, progress, conversation so far."""
+        lines = []
+        if state.get("source_title") or state.get("topic"):
+            lines.append(f"Lesson: {state.get('source_title') or state.get('topic')}"
+                         + (f" (for {state['grade']})" if state.get("grade") else ""))
+        if (covered := self._covered(state)):
+            lines.append(f"Covered so far: {covered}")
+        # Questions that have aged out of the window are still named, which is
+        # a line or two of tokens instead of the whole exchange.
+        recent_qs = {e["q"] for e in (state.get("recent_exchanges") or [])}
+        if (earlier := [q for q in (state.get("asked_questions") or []) if q not in recent_qs]):
+            lines.append("Asked earlier: " + "; ".join(earlier[-8:]))
+        lines.append(f"Conversation so far:\n{self._history(state, keep) or '(nothing yet)'}")
+        return "\n".join(lines)
+
     def _say(self, state: dict, text: str, *, lang: str | None = None,
              kind: str = "lesson") -> dict:
         """Fenced speak. Returns the state updates to merge ({} if nothing said)."""
@@ -182,12 +236,30 @@ class TutorNodes:
         topic, grade = intent_mod.parse_topic_grade(utter)
         # "no, I said respiration, not reproduction" while still being onboarded:
         # take the topic they are correcting TO, not the whole sentence.
-        if (corrected := intent_mod.parse_topic_switch(utter)):
+        corrected = intent_mod.parse_topic_switch(utter)
+        if corrected:
             topic = corrected
+
         if state.get("topic") and not state.get("grade"):
-            g = intent_mod.parse_grade_only(utter)     # tutor asked "which class?"; "six" is the grade
+            # The tutor asked "which class?". Only a class answers that. A reply
+            # that is not a class used to overwrite the topic, so a misheard
+            # "class six" -> "Plastics" silently replaced "the heart" and the
+            # tutor taught a lesson on plastic.
+            g = intent_mod.parse_grade_only(utter) or intent_mod.grade_number(grade)
             if g:
-                topic, grade = None, f"class {g}"
+                topic, grade = state["topic"], f"class {g}"
+            elif corrected:
+                topic, grade = corrected, None        # a deliberate topic change is still allowed
+            else:
+                asks = state.get("source_asks", 0)
+                if asks < 2:
+                    self.d.emit("onboarding_reask", utterance=utter[:80], step="grade")
+                    return {"answer": self._T(state, "ask_grade"), "source_asks": asks + 1,
+                            "user_utterance": None}
+                # Asked twice and still no class: teach it without one rather
+                # than loop, and keep the topic they actually gave.
+                topic, grade = state["topic"], None
+
         topic = topic or state.get("topic")
         grade = grade or state.get("grade")
         asks = state.get("source_asks", 0)
@@ -248,8 +320,12 @@ class TutorNodes:
                   "nothing else.")
         numbered = "\n".join(f"{k + 1}. {x}" for k, x in enumerate(sents))
         user = numbered
+        # A whole section needs a bigger output budget than an answer, and it
+        # runs in the background, so it can wait for rate-limit quota. Falls
+        # back to complete() for providers/stubs that have no long variant.
+        run = getattr(self.d.llm_strong, "complete_long", self.d.llm_strong.complete)
         for attempt in range(config.LOCALIZE_RETRIES + 1):
-            reply = self.d.llm_strong.complete(system, user)
+            reply = run(system, user)
             if not reply:
                 return None
             lines = [re.sub(r"^\s*\d+[.)]\s*", "", l).strip() for l in reply.splitlines() if l.strip()]
@@ -485,7 +561,15 @@ class TutorNodes:
     def classify_intent(self, state: dict) -> dict:
         utter = (state.get("user_utterance") or "").strip()
         parts = intent_mod.split_compound(utter)
-        c = intent_mod.classify(parts[0], paused=bool(state.get("paused")), llm=self.d.llm_fast)
+        # Only reached on a rule miss, which is exactly where the grey cases are
+        # ("the other one", "why?"): give the model the sentence the learner
+        # interrupted and the last exchanges to read it against.
+        # Two exchanges, not six: this runs on the fast model on every rule miss
+        # and only needs enough to resolve "that" or "the other one".
+        sentence = state.get("heard_sentence") or state.get("pending_text") or ""
+        context = f"Tutor was saying: \"{sentence[:300]}\"\n{self._context_block(state, keep=2)}"
+        c = intent_mod.classify(parts[0], paused=bool(state.get("paused")),
+                                llm=self.d.llm_fast, context=context)
         upd = c.as_updates()
         upd["user_utterance"] = parts[0]
         upd["queued_request"] = parts[1] if len(parts) > 1 else None
@@ -621,17 +705,20 @@ class TutorNodes:
         system = (
             f"You are a patient tutor speaking aloud to a {state.get('grade') or 'school'} student. "
             f"Respond in {self._lang_name(lang)} in at most two short sentences. {self.EAR_RULES} "
-            "If asked to translate, translate faithfully. If asked what a word means, define it simply."
+            "If asked to translate, translate faithfully. If asked what a word means, define it simply. "
+            "You are mid-lesson: use the conversation so far to resolve what \"that\" or \"the other "
+            "one\" refers to, and do not repeat an explanation you have already given."
         )
-        user = f"The student just heard this sentence: \"{sentence}\"\nThe student said: \"{utter}\""
+        user = (f"{self._context_block(state)}\n\n"
+                f"The student just heard this sentence: \"{sentence}\"\n"
+                f"The student said: \"{utter}\"")
         answer = self.d.llm_strong.complete(system, user).strip()
         if not answer:
             key = "explain_fallback_lang" if reply_lang else "explain_fallback"
             answer = f"{self._T(state, key)} {sentence}".strip()
             lang = self._lang(state)
-        ex = (state.get("recent_exchanges") or []) + [{"q": utter, "a": answer}]
-        return {"answer": answer, "reply_lang": lang if lang != self._lang(state) else None,
-                "recent_exchanges": ex[-config.RECENT_EXCHANGES_KEEP:]}
+        return _merge({"answer": answer, "reply_lang": lang if lang != self._lang(state) else None},
+                      self._remember(state, utter, answer))
 
     def qa_retrieve(self, state: dict) -> dict:
         utter = state.get("user_utterance") or ""
@@ -648,6 +735,19 @@ class TutorNodes:
         return {"retrieved": [h.as_dict() for h in hits], "retrieval_score": score, "answer_mode": None}
 
     LOOKUP_TOKEN = "LOOKUP"
+    NOTES_MISS_TOKEN = "NOTES_MISS"
+
+    def _general_knowledge_system(self, state: dict, lang: str) -> str:
+        """Shared by direct_answer and compose_answer's second chance."""
+        return (
+            f"You are a friendly tutor speaking aloud to a {state.get('grade') or 'school'} student. "
+            f"The lesson notes do not cover this question. If you can answer it confidently from general "
+            f"knowledge (definitions, everyday facts, school-level science, maths, history, geography), "
+            f"answer in {self._lang_name(lang)} in at most two short sentences. {self.EAR_RULES} "
+            f"If it needs current or very specific information you are not sure about (recent events, "
+            f"prices, schedules, statistics, local details, little-known people), reply with exactly the "
+            f"single word {self.LOOKUP_TOKEN} and nothing else."
+        )
 
     def direct_answer(self, state: dict) -> dict:
         """Not in the notes. Most such questions are trivial for the model
@@ -659,25 +759,15 @@ class TutorNodes:
         utter = state.get("user_utterance") or ""
         lang = state.get("reply_lang") or self._lang(state)
         recent = state.get("recent_exchanges") or []
-        system = (
-            f"You are a friendly tutor speaking aloud to a {state.get('grade') or 'school'} student. "
-            f"The lesson notes do not cover this question. If you can answer it confidently from general "
-            f"knowledge (definitions, everyday facts, school-level science, maths, history, geography), "
-            f"answer in {self._lang_name(lang)} in at most two short sentences. {self.EAR_RULES} "
-            f"If it needs current or very specific information you are not sure about (recent events, "
-            f"prices, schedules, statistics, local details, little-known people), reply with exactly the "
-            f"single word {self.LOOKUP_TOKEN} and nothing else."
-        )
-        history = "\n".join(f"Q: {e['q']}\nA: {e['a']}" for e in recent)
-        user = f"Recent exchanges:\n{history or '(none)'}\n\nQuestion: {utter}"
+        system = self._general_knowledge_system(state, lang)
+        user = f"{self._context_block(state)}\n\nQuestion: {utter}"
         reply = self.d.llm_strong.complete(system, user).strip()
         if not reply or self.LOOKUP_TOKEN in reply.upper().split()[:3] or len(reply) < 4:
             self.d.emit("answer_mode", mode="lookup", question=utter)
             return {"answer_mode": "web"}
         self.d.emit("answer_mode", mode="direct", question=utter)
-        ex = recent + [{"q": utter, "a": reply}]
-        return {"answer": reply, "answer_mode": "direct",
-                "recent_exchanges": ex[-config.RECENT_EXCHANGES_KEEP:]}
+        return _merge({"answer": reply, "answer_mode": "direct"},
+                      self._remember(state, utter, reply))
 
     def web_search_node(self, state: dict) -> dict:
         self._arm(state, "filler_check")
@@ -707,12 +797,24 @@ class TutorNodes:
             system = (
                 f"You are a friendly tutor speaking aloud to a {state.get('grade') or 'school'} student. "
                 f"Answer in {self._lang_name(lang)} in at most two short sentences. {self.EAR_RULES} "
-                "Use only the material given. If it does not answer the question, say you're not sure."
+                "Use the material given and what you have already told the student. If neither answers "
+                f"the question, reply with exactly the single word {self.NOTES_MISS_TOKEN} and nothing else."
             )
             material = "\n".join(f"- ({r.get('section_title') or r.get('source')}) {r['text']}" for r in retrieved[:4])
-            history = "\n".join(f"Q: {e['q']}\nA: {e['a']}" for e in recent)
-            user = f"Material:\n{material}\n\nRecent exchanges:\n{history or '(none)'}\n\nQuestion: {utter}"
+            user = (f"{self._context_block(state)}\n\nMaterial:\n{material}\n\nQuestion: {utter}")
             answer = self.d.llm_strong.complete(system, user).strip()
+            if self.NOTES_MISS_TOKEN in answer.upper():
+                # Retrieval was confident enough to come here, but the chunks do
+                # not actually contain the answer -- typically a follow-up that
+                # the lesson simply does not cover. Saying "I'm not sure" when
+                # the model plainly knows the answer is the worst outcome, so
+                # give it one shot from general knowledge before falling back.
+                self.d.emit("answer_mode", mode="notes_miss", question=utter)
+                answer = self.d.llm_strong.complete(
+                    self._general_knowledge_system(state, lang),
+                    f"{self._context_block(state)}\n\nQuestion: {utter}").strip()
+                if not answer or self.LOOKUP_TOKEN in answer.upper().split()[:3]:
+                    answer = ""
         if not answer:                                             # deterministic extractive fallback
             top = retrieved[0] if retrieved else None
             if top and not top.get("section_id"):                  # web: pick the snippet that overlaps the question most
@@ -727,9 +829,9 @@ class TutorNodes:
                 answer = f"{self._T(state, 'from_web')} {top['text']}"
             else:
                 answer = self._T(state, "not_found_answer")
-        ex = recent + [{"q": utter, "a": answer}]
         mode = "notes" if state.get("retrieval_score", 0.0) >= config.RETRIEVAL_TAU else "web"
-        return {"answer": answer, "answer_mode": mode, "recent_exchanges": ex[-config.RECENT_EXCHANGES_KEEP:]}
+        return _merge({"answer": answer, "answer_mode": mode},
+                      self._remember(state, utter, answer))
 
     def discard(self, state: dict) -> dict:
         self.d.emit("discard", born=state.get("born_turn_id"), live=self.d.clock.current(),

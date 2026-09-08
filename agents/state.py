@@ -96,6 +96,7 @@ class TutorState(TypedDict, total=False):
     topic_switch: bool               # navigate meant "teach a different topic", not "jump"
     queued_request: str | None       # second clause of "do A and B"
     recent_exchanges: list[dict]     # last N {"q":..., "a":...}
+    asked_questions: list[str]       # every question this session, text only
     retrieved: list[dict]            # [{"text", "section_id", "section_title", "score", "source"}]
     retrieval_score: float
     answer_mode: str | None          # notes | direct | web -- where the answer came from
@@ -137,7 +138,8 @@ def initial_state(session_id: str, pdf_paths: list[str] | None = None,
         event=None, user_utterance=None, detected_lang=None, intent=None,
         command=None, command_arg=None, session_cmd=None, nav_target=None,
         topic_switch=False, queued_request=None,
-        recent_exchanges=[], retrieved=[], retrieval_score=0.0, answer_mode=None, web_aborted=False,
+        recent_exchanges=[], asked_questions=[], retrieved=[], retrieval_score=0.0,
+        answer_mode=None, web_aborted=False,
         answer=None,
         reply_lang=None, clarify_count=0, stale_drops=0,
         paused=False,

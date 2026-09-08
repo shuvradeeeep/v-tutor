@@ -99,3 +99,45 @@ def test_reply_language_accepts_all_rime_languages():
         assert c.intent == "explain" and c.reply_lang == code, (name, c)
     c = classify_rules("teach the whole lesson in spanish")
     assert c.intent == "command" and c.command == "switch_lesson_lang" and c.command_arg == "es"
+
+
+# --- follow-up questions ---------------------------------------------------
+# Regression: "and which one is the strongest" is six words, and the cap was
+# five, so it was retrieved on its own, matched nothing useful, and the tutor
+# answered "I'm not sure."
+
+def test_follow_ups_are_recognised():
+    from agents.intent import is_follow_up
+    for q in ("and why", "but how", "why is that", "and which one is the strongest",
+              "which one is the biggest", "what about the valves", "is that the same",
+              "the other one"):
+        assert is_follow_up(q), q
+
+
+def test_self_contained_questions_are_not_follow_ups():
+    from agents.intent import is_follow_up
+    for q in ("what is chlorophyll", "how many chambers does the heart have",
+              "who discovered the circulation of blood in sixteen twenty eight",
+              "explain photosynthesis for class six"):
+        assert not is_follow_up(q), q
+
+
+# --- misheard class numbers ------------------------------------------------
+# Real transcripts from one session: "class six" came back as "classics",
+# "glass 6" and (after the tutor asked again) "Plastics".
+
+def test_misheard_class_is_still_a_class():
+    from agents.intent import parse_topic_grade
+    for utter in ("the heart for classics.", "the heart for glass 6.",
+                  "the heart for clas 6", "the heart for class six"):
+        topic, grade = parse_topic_grade(utter)
+        assert grade == "class 6", utter
+        assert "heart" in topic and "class" not in topic, utter
+
+
+def test_naming_the_topic_word_is_a_switch_but_asking_for_more_is_not():
+    from agents.intent import is_topic_switch, parse_topic_switch
+    assert parse_topic_switch("I want to learn the topic heart.") == "heart"
+    assert is_topic_switch("teach me the chapter on valves")
+    assert not is_topic_switch("I want to learn more about valves")
+    assert not is_topic_switch("tell me more about the aorta")

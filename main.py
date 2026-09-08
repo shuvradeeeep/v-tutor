@@ -101,6 +101,19 @@ async def run_local(args: argparse.Namespace) -> None:
           f"whisper={stt_settings.WHISPER_MODEL_SIZE} (beam {stt_settings.WHISPER_BEAM_SIZE}, "
           f"{stt_settings.WHISPER_CPU_THREADS} threads)  stress={args.stress_ms}ms")
     print(f"transcripts: {stt_settings.TRANSCRIPTS_CSV}")
+    # Which speaker the tutor's voice is actually going to. Windows routes to
+    # the headphone jack by default on this hardware, so with no earphones
+    # plugged in the whole pipeline looks healthy and you hear nothing.
+    try:
+        import sounddevice as sd
+        out = args.output_device if args.output_device is not None else sd.default.device[1]
+        in_ = args.input_device if args.input_device is not None else sd.default.device[0]
+        print(f"audio out:   [{out}] {sd.query_devices(out)['name']}   "
+              f"in: [{in_}] {sd.query_devices(in_)['name']}")
+        print("             (list them: python -c \"import sounddevice; print(sounddevice.query_devices())\";"
+              " pick with --output-device N / --input-device N)")
+    except Exception as exc:  # noqa: BLE001
+        print(f"audio devices unavailable: {exc}")
     if args.no_headphones:
         print("Speakers mode: the mic is ignored while the tutor talks, so you cannot interrupt it."
               "\nSpeak after it stops. Ctrl+C to quit.\n")

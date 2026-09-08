@@ -354,3 +354,155 @@ def test_in_lesson_navigation_still_navigates(lesson, speaker):
     assert lesson.state["topic"] == "the heart"
     assert lesson.state["topic_switch"] is False
     assert "four chambers" in speaker.lines[-1].text
+
+
+# --- session memory --------------------------------------------------------
+# The tutor used to answer each question as if it were the first: only two
+# exchanges were kept and neither the explain path nor the intent classifier
+# saw them, so it re-explained terms it had just explained.
+
+class RecordingLLM:
+    """Answers plausibly and keeps every prompt it was sent."""
+
+    provider = "recording"
+    model = "recording"
+
+    def __init__(self, reply: str = "Here is a short answer."):
+        self.reply = reply
+        self.prompts: list[tuple[str, str]] = []
+
+    def complete(self, system: str, user: str) -> str:
+        self.prompts.append((system, user))
+        return self.reply
+
+
+def test_answers_carry_the_conversation_and_the_lesson_so_far(speaker, clock):
+    from agents.graph import TutorRunner
+    from conftest import make_deps, onboard
+    llm = RecordingLLM()
+    r = TutorRunner(make_deps(speaker=speaker, clock=clock, llm_strong=llm), "mem")
+    onboard(r)
+    r.barge_in("how many chambers does the heart have")
+    r.barge_in("and why is the left one strongest")
+
+    last = llm.prompts[-1][1]
+    assert "Lesson: The Heart (for class 6)" in last
+    assert "Covered so far:" in last
+    assert "how many chambers" in last, "the earlier question is missing from the prompt"
+
+
+def test_history_keeps_more_than_two_exchanges(speaker, clock):
+    import config
+    from agents.graph import TutorRunner
+    from conftest import make_deps, onboard
+    assert config.RECENT_EXCHANGES_KEEP >= 6
+    llm = RecordingLLM()
+    r = TutorRunner(make_deps(speaker=speaker, clock=clock, llm_strong=llm), "mem2")
+    onboard(r)
+    for q in ("what is an atrium", "what is a ventricle", "what is the aorta", "what is a valve"):
+        r.barge_in(q)
+    assert "what is an atrium" in llm.prompts[-1][1], "oldest question fell out of a 4-turn session"
+
+
+def test_explain_sees_the_conversation_not_just_the_last_sentence(speaker, clock):
+    from agents.graph import TutorRunner
+    from conftest import make_deps, onboard
+    llm = RecordingLLM()
+    r = TutorRunner(make_deps(speaker=speaker, clock=clock, llm_strong=llm), "mem3")
+    onboard(r)
+    r.barge_in("how many chambers does the heart have")
+    r.barge_in("what does that mean", words_heard=12)
+    system, user = llm.prompts[-1]
+    assert "do not repeat an explanation you have already given" in system
+    assert "Conversation so far:" in user and "how many chambers" in user
+
+
+def test_intent_classifier_is_given_the_context(speaker, clock):
+    from agents.graph import TutorRunner
+    from conftest import make_deps, onboard
+    fast = RecordingLLM('{"intent": "question"}')
+    r = TutorRunner(make_deps(speaker=speaker, clock=clock, llm_fast=fast), "mem4")
+    onboard(r)
+    r.barge_in("the other one", words_heard=6)          # no rule matches: goes to the LLM
+    assert fast.prompts, "the fast model was never called"
+    system, user = fast.prompts[-1]
+    assert "Utterance: the other one" in user
+    assert "Tutor was saying:" in user
+    assert 'label ONLY the line marked "Utterance:"' in system
+
+
+def test_notes_miss_gets_a_second_chance_before_saying_not_sure(speaker, clock):
+    """Retrieval was confident but the chunks do not answer it: the tutor should
+    fall back to general knowledge rather than 'I'm not sure'."""
+    from agents.graph import TutorRunner
+    from conftest import make_deps, onboard
+
+    class NotesMissLLM:
+        provider, model = "scripted", "scripted"
+
+        def __init__(self):
+            self.calls = 0
+
+        def complete(self, system: str, user: str) -> str:
+            self.calls += 1
+            if "NOTES_MISS" in system:            # the grounded prompt
+                return "NOTES_MISS"
+            return "The left ventricle is the strongest chamber."
+
+    llm = NotesMissLLM()
+    r = TutorRunner(make_deps(speaker=speaker, clock=clock, llm_strong=llm), "miss")
+    onboard(r)
+    n = len(speaker.lines)
+    r.barge_in("which one is the strongest")
+    said = " ".join(l.text for l in speaker.lines[n:])
+    assert "left ventricle is the strongest" in said
+    assert "not sure" not in said
+    assert llm.calls >= 2, "the general-knowledge second chance was never taken"
+
+
+# --- "which class?" must only ever be answered by a class ------------------
+# Regression: the tutor asked for the class, Whisper heard "Plastics", and that
+# silently replaced the topic -- the learner asked for the heart and got a
+# lesson on plastic.
+
+def test_a_non_class_reply_does_not_replace_the_topic(runner, speaker):
+    runner.start()
+    runner.barge_in("English")
+    runner.barge_in("the heart")
+    assert "which class" in speaker.lines[-1].text
+    runner.barge_in("Plastics")                      # misheard "class six"
+    assert runner.state["topic"] == "the heart"
+    assert runner.state["onboarding_step"] == "source"
+    assert "which class" in speaker.lines[-1].text   # asked again, topic intact
+    runner.barge_in("class six")
+    assert runner.state["topic"] == "the heart" and runner.state["grade"] == "class 6"
+
+
+def test_the_class_question_gives_up_rather_than_looping(runner, speaker):
+    runner.start()
+    runner.barge_in("English")
+    runner.barge_in("the heart")
+    runner.barge_in("Plastics")                        # asked again
+    runner.barge_in("Plastics")                        # give up on the class, keep the topic
+    assert runner.state["topic"] == "the heart" and runner.state["grade"] is None
+    assert runner.state["onboarding_step"] == "done"
+    assert "Let's begin" in speaker.lines[-1].text
+
+
+def test_a_deliberate_switch_is_still_allowed_while_being_asked_the_class(runner, speaker):
+    runner.start()
+    runner.barge_in("English")
+    runner.barge_in("the heart")
+    runner.barge_in("actually I want to learn the topic photosynthesis")
+    assert runner.state["topic"] == "photosynthesis"
+
+
+def test_i_want_to_learn_the_topic_x_switches_mid_lesson(speaker, clock):
+    from conftest import onboard
+    runner, asked = _two_topic_runner(speaker, clock)
+    onboard(runner)
+    runner.barge_in("I want to learn the topic respiration")
+    assert asked[-1] == "respiration"
+    assert runner.state["topic"] == "respiration"
+    said = " ".join(l.text for l in speaker.lines[-3:])
+    assert "couldn't find a part" not in said

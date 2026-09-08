@@ -116,12 +116,34 @@ LLM_STRONG_MODEL = _env("LLM_STRONG_MODEL")
 # Reasoning models (gpt-oss on Groq) get "low" automatically; set to override,
 # or "none" to send nothing. Reasoning tokens count against LLM_MAX_TOKENS.
 LLM_REASONING_EFFORT = _env("LLM_REASONING_EFFORT")
-LLM_MAX_TOKENS = int(_env("LLM_MAX_TOKENS", "1200"))
+# max_tokens is RESERVED against the provider's tokens-per-minute limit, not
+# just billed on use: Groq counted a 195-token prompt with max_tokens=1200 as
+# ~1198 tokens of quota. Measured on openai/gpt-oss-120b at reasoning "low":
+# an answer completes in ~50 tokens, a section rewrite in ~220. So these are
+# sized to the work, with headroom, instead of to the model's ceiling.
+LLM_MAX_TOKENS = int(_env("LLM_MAX_TOKENS", "400"))            # answers, intent, explain
+LLM_MAX_TOKENS_LONG = int(_env("LLM_MAX_TOKENS_LONG", "800"))  # translate/simplify a whole section
 LLM_TIMEOUT_S = float(_env("LLM_TIMEOUT_S", "20"))
+# Tokens per minute the provider allows per model (Groq free tier: 8000).
+# Requests are paced to stay under it instead of failing: a 429 silently
+# degrades the tutor to its deterministic fallback, which sounds like the model
+# got worse. 0 disables pacing.
+LLM_TPM_LIMIT = int(_env("LLM_TPM_LIMIT", "8000"))
+# How long a call may wait for quota. Background section prep can afford to
+# wait; the answer path cannot, so it uses a fraction of this.
+LLM_TPM_MAX_WAIT = float(_env("LLM_TPM_MAX_WAIT", "20"))
 WEB_SEARCH_PROVIDER = _env("WEB_SEARCH_PROVIDER", "stub")
 
 GAP_FILLER_DEADLINE_MS = 700
-RECENT_EXCHANGES_KEEP = 2
+# Question/answer pairs carried into every answer prompt. Two was enough to
+# resolve "and why?" but the tutor forgot anything said earlier in the lesson
+# and re-explained things it had just explained. These are short spoken turns,
+# so six costs little and makes the session feel continuous.
+RECENT_EXCHANGES_KEEP = int(_env("RECENT_EXCHANGES_KEEP", "6"))
+# Questions (without answers) kept for the whole session. Twelve of these cost
+# a line or two of prompt but let an hour-long lesson refer back to something
+# asked at the start, which the six-exchange window has long forgotten.
+ASKED_QUESTIONS_KEEP = int(_env("ASKED_QUESTIONS_KEEP", "12"))
 CLARIFY_MAX_ASKS = 1
 
 # Lesson size for a class-level session: Wikipedia articles run to 80+ beats.

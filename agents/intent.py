@@ -115,19 +115,41 @@ def parse_language(utter: str, detected_lang: str | None = None,
     return guess if guess in supported and _words(utter) >= 1 else None
 
 
+# Whisper reliably mangles the spoken word "class": real transcripts from one
+# session include "glass 6", "the heart for classics" and "clas 6". Accepting
+# the variants here is far cheaper than losing the grade -- and losing it is
+# expensive, because a non-grade reply used to overwrite the topic.
+_CLASS = r"class|clas|klass|klas|glass|glas|grade|great|std|standard|kaksha"
 _GRADE_EN = re.compile(
-    rf"\b(?:class|grade|std|standard|kaksha)\s*(?:of\s*)?({_NUM_ANY})(?:th|st|nd|rd)?\b"
-    rf"|\b({_NUM_ANY})(?:th|st|nd|rd)?\s*(?:class|grade|standard|std|kaksha)\b", re.IGNORECASE)
+    rf"\b(?:{_CLASS})\s*(?:of\s*)?({_NUM_ANY})(?:th|st|nd|rd)?\b"
+    rf"|\b({_NUM_ANY})(?:th|st|nd|rd)?\s*(?:{_CLASS})\b", re.IGNORECASE)
 _GRADE_ONLY = re.compile(
-    rf"^\s*(?:class|grade|std|standard|kaksha|कक्षा|क्लास)?\s*({_NUM_ANY})(?:th|st|nd|rd|वीं|वी)?"
-    rf"\s*(?:class|grade|standard|std|kaksha|कक्षा|क्लास)?\s*[.!]*$", re.IGNORECASE)
+    rf"^\s*(?:{_CLASS}|कक्षा|क्लास)?\s*({_NUM_ANY})(?:th|st|nd|rd|वीं|वी)?"
+    rf"\s*(?:{_CLASS}|कक्षा|क्लास)?\s*[.!]*$", re.IGNORECASE)
+# "class six" spoken quickly comes back as one word. These are not English
+# words a school learner would offer as a class, so the mapping is safe.
+_GRADE_SQUASHED = {"classics": 6, "clasics": 6, "classix": 6, "classex": 6,
+                   "glassix": 6, "classate": 8, "classnine": 9, "classten": 10}
+_GRADE_SQUASHED_RX = re.compile(rf"\b({'|'.join(_GRADE_SQUASHED)})\b", re.IGNORECASE)
 
 
 def parse_grade_only(utter: str) -> int | None:
     """'six', '6', 'class 6', 'chhe' -- the whole utterance is just a grade.
     Used when the tutor has asked 'which class?' and the topic is already known."""
-    m = _GRADE_ONLY.match(utter.strip().lower())
-    return _num(m.group(1)) if m else None
+    text = utter.strip().lower()
+    m = _GRADE_ONLY.match(text)
+    if m:
+        return _num(m.group(1))
+    m = _GRADE_SQUASHED_RX.fullmatch(text.strip(" .!"))
+    return _GRADE_SQUASHED[m.group(1).lower()] if m else None
+
+
+def grade_number(grade: str | None) -> int | None:
+    """"class 6" -> 6. For callers holding an already-parsed grade string."""
+    if not grade:
+        return None
+    m = re.search(r"(\d{1,2})", grade)
+    return int(m.group(1)) if m else None
 _GRADE_HI = re.compile(
     rf"(?:कक्षा|क्लास)\s*({_NUM_ANY})|({_NUM_ANY})\s*(?:वीं|वी)?\s*(?:कक्षा|क्लास)")
 
@@ -160,6 +182,10 @@ def parse_topic_grade(utter: str) -> tuple[str | None, str | None]:
                 grade = f"class {n}"
                 text = text[:m.start()] + " " + text[m.end():]
             break
+    if grade is None and (m := _GRADE_SQUASHED_RX.search(text)):
+        # "the heart for classics" = "the heart for class six", misheard.
+        grade = f"class {_GRADE_SQUASHED[m.group(1).lower()]}"
+        text = text[:m.start()] + " " + text[m.end():]
     text = _FILLER_EN.sub(" ", text)
     text = _FILLER_HINGLISH.sub(" ", text)
     for f in _FILLER_HI:
@@ -403,6 +429,10 @@ def is_stop_request(utter: str) -> bool:
 _SWITCH_MARKER = re.compile(
     r"\binstead\b|\b(?:change|switch)\s+(?:the\s+)?(?:topic|lesson|subject|chapter)\b|"
     r"\b(?:change|switch)\s+to\b|\b(?:different|another|new)\s+(?:topic|lesson|subject|chapter)\b|"
+    # "I want to learn the topic heart" / "teach me the chapter on valves": naming
+    # the topic word is what separates this from "tell me more about valves",
+    # which is a question inside the current lesson.
+    r"\b(?:want|like|learn|study|do|teach|start)\b[^.?!]{0,24}?\b(?:topic|lesson|chapter|subject)\b|"
     r"\b(?:topic|lesson)\s+badal|\bbadal\s+do\b|\bdusra\s+(?:topic|chapter)\b", re.IGNORECASE)
 # "I wanted X, not Y" -- the tutor misheard the topic and is teaching the wrong one.
 _SWITCH_CORRECTION = re.compile(
@@ -417,6 +447,8 @@ _SWITCH_LEAD = re.compile(
     r"let'?s\s+(?:do|study|learn)\s*|teach\s+me\s*|"
     r"(?:change|switch)\s*(?:the\s*)?(?:topic|lesson|subject|chapter)?\s*(?:to|into)\s*"
     r")?", re.IGNORECASE)
+_TOPIC_WORD_LEAD = re.compile(r"^(?:the\s+)?(?:topic|lesson|chapter|subject)\s*(?:on|about|is|of)?\s*",
+                              re.IGNORECASE)
 
 
 def is_topic_switch(utter: str) -> bool:
@@ -436,6 +468,8 @@ def parse_topic_switch(utter: str) -> str | None:
         or re.match(r"^(.*?)\s+instead\b", text)
     candidate = m.group(1) if m else text
     candidate = _SWITCH_LEAD.sub("", candidate, count=1)
+    # "the topic respiration": the article belongs to "topic", not to the topic.
+    candidate = _TOPIC_WORD_LEAD.sub("", candidate, count=1)
     topic, _ = parse_topic_grade(candidate)
     return topic
 
@@ -520,7 +554,7 @@ def split_compound(utter: str) -> list[str]:
 # question, and knowing that "in hindi" alone is a one-off reply, not a switch.
 # Kept short on purpose: the free Groq tier allows 8000 tokens/minute on the
 # fast model, and this prompt is sent on every rule miss.
-LLM_SYSTEM = """A school student interrupted a voice tutor mid-sentence. Label the utterance. Reply with one JSON object only:
+LLM_SYSTEM = """A school student interrupted a voice tutor mid-sentence. Label the utterance. You may first be given what the tutor was saying and the conversation so far: use it to resolve references, but label ONLY the line marked "Utterance:". Reply with one JSON object only:
 {"intent": question|explain|navigate|command|session|backchannel|unknown, "command": repeat|slower|faster|switch_lesson_lang|null, "command_arg": hi|en|null, "session_cmd": pause|continue|restart|quit|null, "nav_target": {"kind": prev|next|index|topic, "value": ...}|null, "reply_lang": hi|en|es|fr|de|it|pt|ja|null}
 - backchannel: only "I'm following, carry on" (mm-hmm, okay, um okay so). Confusion or a comment is never backchannel.
 - explain: didn't understand the last sentence; wants it defined, simpler, spelled, pronounced, an example, or translated ("wait what", "huh", "that went over my head", "the ventricle thing"). A bare language name ("in hindi", "hindi mein") = explain once in that language: reply_lang set.
@@ -532,7 +566,13 @@ LLM_SYSTEM = """A school student interrupted a voice tutor mid-sentence. Label t
 Torn between backchannel and explain: explain. Torn between explain and question: question if it needs facts beyond the last sentence."""
 
 
-def classify(utter: str, *, paused: bool = False, llm=None) -> Classification:
+def classify(utter: str, *, paused: bool = False, llm=None, context: str | None = None) -> Classification:
+    """
+    context: what the tutor was saying and the last exchanges. Only the LLM
+    branch uses it -- the rules are deliberately context-free -- but it is what
+    lets "the other one" or "why?" be labelled against the actual conversation
+    instead of being read cold.
+    """
     if not utter.strip():
         # VAD fired but Whisper heard no words (cough, chair scrape). Playback
         # was already stopped on the fast path; just pick the lesson back up.
@@ -543,23 +583,38 @@ def classify(utter: str, *, paused: bool = False, llm=None) -> Classification:
     if c:
         return c
     if llm is not None:
-        c = parse_llm_json(llm.complete(LLM_SYSTEM, utter))
+        prompt = f"{context}\nUtterance: {utter}" if context else utter
+        c = parse_llm_json(llm.complete(LLM_SYSTEM, prompt))
         if c:
             return c
     return heuristic(utter)
 
 
 _FOLLOW_UP_EN = re.compile(
-    r"^(?:and|but|so|then|why|how come|what about|how about|is that|does that|was that)\b",
+    r"^(?:and|but|so|then|why|how come|what about|how about|is that|does that|was that|"
+    r"which (?:one|of them)|what else|any others?|ok(?:ay)? (?:and|but|so))\b",
     re.IGNORECASE)
 _FOLLOW_UP_HI = ("और", "लेकिन", "तो", "क्यों", "फिर")
+# A short question that points at something already said rather than naming it.
+_REFERENTIAL = re.compile(
+    r"\b(?:that one|this one|the other one|the same|it|that|those|them|the first|the second|"
+    r"the last one|the strongest|the biggest|the smallest)\b", re.IGNORECASE)
 
 
 def is_follow_up(utter: str) -> bool:
-    """'and why?', 'but how?', 'what about the roots?' depend on the previous
-    question and should be retrieved together with it. A short but
-    self-contained question ('What is chlorophyll?') must not be."""
+    """
+    'and why?', 'but how?', 'which one is the strongest?' depend on the previous
+    question and must be retrieved together with it, because on their own they
+    retrieve nothing useful. A short but self-contained question ('What is
+    chlorophyll?') must not be.
+
+    The word cap was 5, which let "and which one is the strongest" (six words)
+    through as if it stood alone; the tutor then answered "I'm not sure".
+    """
     text = _norm(utter)
-    if _words(text) > 5:
-        return False
-    return bool(_FOLLOW_UP_EN.match(text)) or any(text.startswith(w) for w in _FOLLOW_UP_HI)
+    n = _words(text)
+    if n > 8:
+        return False                       # long enough to carry its own subject
+    if _FOLLOW_UP_EN.match(text) or any(text.startswith(w) for w in _FOLLOW_UP_HI):
+        return True
+    return n <= 6 and bool(_REFERENTIAL.search(text))
