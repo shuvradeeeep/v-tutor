@@ -102,13 +102,40 @@ def make_app(agent_name: str) -> web.Application:
             "langs": {k: config.LANG_NAMES.get(k, k) for k in ("en", "hi")},
         })
 
+    async def upload(req: web.Request) -> web.Response:
+        upload_dir = ROOT / ".cache" / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            reader = await req.multipart()
+        except Exception as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=400)
+        saved_paths: list[str] = []
+        saved_names: list[str] = []
+        async for field in reader:
+            if field.name != "pdf":
+                continue
+            filename = Path(field.filename or "upload.pdf").name
+            dest = upload_dir / filename
+            with open(dest, "wb") as fh:
+                while True:
+                    chunk = await field.read_chunk(65536)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
+            saved_paths.append(str(dest))
+            saved_names.append(filename)
+        if not saved_paths:
+            return web.json_response({"ok": False, "error": "No PDF field in request"}, status=400)
+        return web.json_response({"ok": True, "paths": saved_paths, "names": saved_names})
+
     async def index(_: web.Request) -> web.FileResponse:
         return web.FileResponse(STATIC / "index.html")
 
-    app = web.Application()
+    app = web.Application(client_max_size=100 * 1024 * 1024)  # 100 MB max upload
     app.router.add_get("/", index)
     app.router.add_get("/token", token)
     app.router.add_get("/info", info)
+    app.router.add_post("/upload", upload)
     app.router.add_static("/static", STATIC)
     return app
 

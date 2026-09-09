@@ -401,10 +401,22 @@ class VoiceBridge:
         self.worker.submit(self.runner.confirm_playback, "playback_confirmed")
 
 
+    def load_pdf(self, paths: list[str]) -> None:
+        """Inject new PDF paths mid-session and trigger the tutor to teach from them."""
+        if self._closed or not paths:
+            return
+        self.speaker.stop()
+        self.clock.bump()
+
+        def _deliver() -> None:
+            self.runner.load_pdf(paths)
+            self._emit("ingest", pdf_paths=paths)
+        self.worker.submit(_deliver, f"load_pdf:{paths[0][:40]}")
+
+
 # --------------------------------------------------------------------------
 # Construction: everything the harness wires up, but with a real Player.
 # --------------------------------------------------------------------------
-
 def make_bridge(player: Player, *, session_id: str, pdf_paths: list[str] | None = None,
                 preset_lang: str | None = None, evidence_path: str | Path | None = None,
                 checkpoint_db: str | None = None, on_text: Callable[[str, dict], None] | None = None,

@@ -282,6 +282,11 @@ def run_livekit() -> None:
                 who = pkt.participant.identity if pkt.participant else "ui"
                 logger.info("button from %s: %r", who, phrase)
                 bridge.on_transcript(phrase, lang=None, prob=1.0)
+            pdf_paths = msg.get("load_pdf")
+            if pdf_paths and isinstance(pdf_paths, list):
+                who = pkt.participant.identity if pkt.participant else "ui"
+                logger.info("pdf upload from %s: %s", who, pdf_paths)
+                bridge.load_pdf(pdf_paths)
 
         tasks: set[asyncio.Task] = set()
         # One learner per room. A second device joining the same room used to

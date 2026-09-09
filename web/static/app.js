@@ -282,6 +282,36 @@ ui.mic.addEventListener("click", async () => {
   ui.mic.classList.toggle("on", on); ui.mic.classList.toggle("off", !on);
   ui.mic.querySelector("span").textContent = on ? "Mic" : "Muted";
 });
+
+// ---------------------------------------------------------------- PDF upload
+const pdfBtn = document.getElementById("pdf-btn");
+const pdfInput = document.getElementById("pdf-input");
+pdfBtn.addEventListener("click", () => pdfInput.click());
+pdfInput.addEventListener("change", async () => {
+  const files = pdfInput.files;
+  if (!files || files.length === 0) return;
+  const formData = new FormData();
+  for (const f of files) formData.append("pdf", f);
+  pdfBtn.querySelector("span").textContent = "Uploading…";
+  pdfBtn.disabled = true;
+  try {
+    const res = await fetch("/upload", { method: "POST", body: formData });
+    const json = await res.json();
+    if (json.ok) {
+      note(`📄 Loaded: ${json.names.join(", ")} — teaching from your document now`);
+      send("control", { load_pdf: json.paths });
+    } else {
+      note(`PDF upload failed: ${json.error || "unknown error"}`, "warn");
+    }
+  } catch (err) {
+    note(`PDF upload error: ${err.message}`, "warn");
+  } finally {
+    pdfBtn.querySelector("span").textContent = "PDF";
+    pdfBtn.disabled = false;
+    pdfInput.value = "";
+  }
+});
+
 window.addEventListener("pagehide", () => room?.disconnect());
 
 fetch("/info").then((r) => r.json()).then((i) => {

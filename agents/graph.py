@@ -174,6 +174,29 @@ class TutorRunner:
     def confirm_playback(self) -> dict:
         return self.send({"type": "playback_confirmed"})
 
+    def load_pdf(self, paths: list[str]) -> dict:
+        """Inject new PDF paths at runtime and trigger the graph to teach from them.
+
+        Sets ``onboarding_step = "source"`` so that ``route_after_interrupt``
+        sends the next event to ``choose_source``, which immediately detects
+        ``pdf_paths`` is set and routes to ``parse_pdf → ingest → teach``.
+        """
+        self.pdf_paths = paths
+        # Update the live graph state: inject paths, set onboarding_step to
+        # "source" so the next user_barge_in arrives at choose_source, and
+        # clear any finished lesson so the graph does not think we're done.
+        self.app.update_state(
+            self.config,
+            {"pdf_paths": paths, "onboarding_step": "source",
+             "beats": [], "beat_index": 0, "beat_spoken": False,
+             "topic": "", "source_title": "", "sections": [], "section_index": 0,
+             "paused": False, "finished": False},
+        )
+        # Drive the graph: a synthetic barge-in wakes await_event.
+        # route_after_interrupt sees onboarding_step="source" → choose_source.
+        # choose_source sees pdf_paths set → parse_pdf → ingest → teach.
+        return self.send({"type": "user_barge_in", "text": ""})
+
     # -- introspection ----------------------------------------------------------
     @property
     def state(self) -> dict:
