@@ -33,6 +33,26 @@ class EvidenceWriter:
         ])
         self._fh.flush()
         self.rows += 1
+        if self._fh.closed:
+            return
+        try:
+            self._w.writerow([
+                time.strftime("%Y-%m-%dT%H:%M:%S"),
+                f"{(time.perf_counter() - self._t0) * 1000:.0f}",
+                self.session_id, name,
+                json.dumps(payload, ensure_ascii=False, default=str),
+            ])
+            self._fh.flush()
+            self.rows += 1
+        except (ValueError, OSError):
+            pass
 
     def close(self) -> None:
         self._fh.close()
+        if not self._fh.closed:
+            try:
+                self._fh.flush()
+            except (ValueError, OSError):
+                pass
+            self._fh.close()
+
