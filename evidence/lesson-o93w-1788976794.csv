@@ -1,0 +1,11 @@
+timestamp,elapsed_ms,session,event,payload
+2026-09-09T23:29:54,46,lesson-o93w-1788976794,tts,"{""turn"": 0, ""words"": 17, ""synth_ms"": 1, ""audio_s"": 5.61, ""cached"": true, ""first_audio_ms"": null, ""timestamps"": false, ""transport"": ""ws""}"
+2026-09-09T23:29:54,46,lesson-o93w-1788976794,speak,"{""turn"": 0, ""kind"": ""system"", ""lang"": ""en"", ""text"": ""Hi! Which language shall we study in? You can say it, or tap it on the screen.""}"
+2026-09-09T23:29:55,1377,lesson-o93w-1788976794,stop,"{""cursor"": {""turn_id"": 0, ""words_heard"": 4, ""text"": ""Hi! Which language shall we study in? You can say it, or tap it on the screen."", ""was_last_item"": true, ""playing"": true}}"
+2026-09-09T23:29:55,1378,lesson-o93w-1788976794,vad_start,"{""turn"": 1, ""stop_ms"": 0.32, ""cursor"": {""turn_id"": 0, ""words_heard"": 4, ""text"": ""Hi! Which language shall we study in? You can say it, or tap it on the screen."", ""was_last_item"": true, ""playing"": true}}"
+2026-09-09T23:29:56,2259,lesson-o93w-1788976794,transcript,"{""text"": ""Slight."", ""lang"": ""en"", ""prob"": 1.0, ""vad_s"": 0.6, ""whisper_ms"": 274, ""cursor"": {""word_index"": 4}, ""since_vad_start_ms"": 882}"
+2026-09-09T23:29:56,2264,lesson-o93w-1788976794,interrupt,"{""turn"": 1, ""cursor"": null, ""heard"": ""Which language shall we study in?""}"
+2026-09-09T23:29:56,2270,lesson-o93w-1788976794,tts,"{""turn"": 1, ""words"": 13, ""synth_ms"": 2, ""audio_s"": 5.37, ""cached"": true, ""first_audio_ms"": null, ""timestamps"": true, ""transport"": ""ws""}"
+2026-09-09T23:29:56,2271,lesson-o93w-1788976794,speak,"{""turn"": 1, ""kind"": ""system"", ""lang"": ""en"", ""text"": ""Lovely. So, what are we learning today, and which class is it for?""}"
+2026-09-09T23:29:56,2282,lesson-o93w-1788976794,graph_turn_done,"{""ms"": 21, ""intent"": null, ""turn"": 1}"
+2026-09-09T23:30:02,7644,lesson-o93w-1788976794,playback_confirmed,"{""turn"": 1}"

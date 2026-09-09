@@ -747,10 +747,27 @@ class TutorNodes:
         fetch succeeds, so a topic that does not exist costs nothing.
         """
         topic = str(nav.get("value") or "").strip()
-        if nav.get("kind") != "topic" or not topic:
+        if nav.get("kind") != "topic":
             return None
         if not intent_mod.is_topic_switch(state.get("user_utterance") or ""):
             return None
+        if not topic:
+            self.d.emit("switch_topic_requested", from_topic=state.get("topic"))
+            return {
+                "onboarding_step": "source",
+                "topic": None,
+                "topic_switch": False,
+                "source_kind": None,
+                "source_title": None,
+                "source_url": None,
+                "lesson_plan": [],
+                "sections": [],
+                "beat_index": 0,
+                "beat_spoken": False,
+                "nav_target": None,
+                "answer": self._T(state, "ask_switch_topic"),
+                "user_utterance": None,
+            }
         self.d.emit("switch_topic", to=topic, from_topic=state.get("topic"))
         return _merge(self._say(state, self._T(state, "switch_topic", title=topic), kind="system"),
                       {"topic": topic, "topic_switch": True, "source_kind": "topic",

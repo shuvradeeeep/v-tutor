@@ -200,6 +200,14 @@ def test_naming_a_subject_switches_but_asking_for_detail_does_not():
     assert not is_topic_switch("I want to learn how valves work")
 
 
+def test_open_ended_topic_switch_intent():
+    from agents.intent import classify_rules
+    for utter in ("I have to change the topic.", "I want to change the topic", "change the topic", "topic badal do"):
+        c = classify_rules(utter)
+        assert c and c.intent == "navigate" and c.nav_target == {"kind": "topic", "value": ""}, utter
+
+
+
 def test_misheard_hindi_pause_still_pauses():
     """Whisper wrote "zara ruko" as "Zara Rukul." """
     from agents.intent import classify_rules

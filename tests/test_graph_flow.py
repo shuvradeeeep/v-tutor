@@ -349,6 +349,33 @@ def test_grade_survives_a_topic_switch(speaker, clock):
     assert runner.state["topic"] == "respiration" and runner.state["grade"] == "class 6"
 
 
+def test_open_ended_topic_change_waits_for_user_response(speaker, clock):
+    from conftest import onboard
+    runner, asked = _two_topic_runner(speaker, clock)
+    onboard(runner)
+    assert runner.state["topic"] == "the heart"
+    assert runner.state["grade"] == "class 6"
+
+    # Turn 1: User asks to change the topic without naming the target topic yet
+    runner.barge_in("I have to change the topic.")
+
+    assert runner.state["onboarding_step"] == "source"
+    last_said = speaker.lines[-1].text
+    assert "what topic would you like to switch to" in last_said.lower()
+    assert "back to where we were" not in last_said.lower()
+
+    # Turn 2: User names the new topic
+    runner.barge_in("respiration")
+
+    assert asked[-1] == "respiration"
+    assert runner.state["topic"] == "respiration"
+    assert runner.state["grade"] == "class 6"
+    assert runner.state["onboarding_step"] == "done"
+    said = " ".join(l.text for l in speaker.lines[-3:])
+    assert "Respiration releases energy" in said
+
+
+
 def test_in_lesson_navigation_still_navigates(lesson, speaker):
     """No switch wording: stay in this lesson, do not fetch anything new."""
     lesson.barge_in("go to the part about chambers", words_heard=5)

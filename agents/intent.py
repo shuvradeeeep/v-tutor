@@ -379,8 +379,9 @@ def classify_rules(utter: str, *, paused: bool = False) -> Classification | None
     # ---- navigate --------------------------------------------------------
     # A whole-topic change is decided here rather than left to the LLM: it is
     # the one navigation that costs a new lesson, so it should be predictable.
-    if (switch_to := parse_topic_switch(text)):
-        return Classification("navigate", nav_target={"kind": "topic", "value": switch_to})
+    if is_topic_switch(text):
+        switch_to = parse_topic_switch(text)
+        return Classification("navigate", nav_target={"kind": "topic", "value": switch_to or ""})
     # "photosynthesis for class 6" said in the middle of a lesson on Yo-Yo Ma is
     # the onboarding answer again: the learner is telling the tutor what the
     # lesson should have been. Topic plus class is an unmistakable shape.
@@ -587,7 +588,7 @@ _SWITCH_LEAD = re.compile(
     r"i\s+(?:wanted|want|meant|asked for|said)\s*(?:to\s*)?(?:learn|study|do|hear)?\s*(?:about\s*)?|"
     r"let'?s\s+(?:do|study|learn|start|begin)\s*(?:with|on)?\s*|teach\s+me\s*|"
     r"(?:start|begin)\s+(?:with|on)\s*|"
-    r"(?:change|switch)\s*(?:the\s*)?(?:topic|lesson|subject|chapter)?\s*(?:to|into)\s*"
+    r"(?:change|switch)\s*(?:the\s*)?(?:topic|lesson|subject|chapter)?(?:\s*(?:to|into))?\s*"
     r")?", re.IGNORECASE)
 _TOPIC_WORD_LEAD = re.compile(r"^(?:to\s+|into\s+)?(?:the\s+)?(?:topic|lesson|chapter|subject)\s*"
                               r"(?:on|about|is|of|to|into)?\s*", re.IGNORECASE)
@@ -630,10 +631,13 @@ def parse_topic_switch(utter: str) -> str | None:
         or re.match(r"^(.*?)\s+instead\b", text)
     candidate = m.group(1) if m else text
     candidate = _SWITCH_LEAD.sub("", candidate, count=1)
+    candidate = _SWITCH_LEAD.sub("", candidate, count=1)  # strip compound lead e.g. "I want to" then "change topic"
     # "the topic respiration": the article belongs to "topic", not to the topic.
     candidate = _TOPIC_WORD_LEAD.sub("", candidate, count=1)
     candidate = _SWITCH_TAIL.sub("", candidate)
     topic, _ = parse_topic_grade(candidate)
+    if topic and _norm(topic) in ("the", "a", "an", "this", "that", "it", "topic", "lesson", "subject", "chapter", "the topic", "the lesson"):
+        return None
     return topic
 
 

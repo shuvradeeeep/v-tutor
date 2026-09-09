@@ -98,6 +98,7 @@ STRINGS: dict[str, dict[str, "str | list[str]"]] = {
         "going_to": "Going to the part about {title}.",
         "switch_topic": "Okay, let's switch to {title}. Give me a moment while I get it ready.",
         "nav_switch_offer": "That isn't part of this lesson. Say switch to {title} if you'd like a new lesson on it. For now, let's carry on.",
+        "ask_switch_topic": "Sure, what topic would you like to switch to, and which class is it for?",
         # ---- questions about the session itself ----
         "status_length": "About {minutes} more minutes if we don't stop. We're on part {done} of {total}, with {sections} sections still to come.",
         "status_topic": "We're studying {title}{grade}.",
@@ -140,6 +141,7 @@ STRINGS: dict[str, dict[str, "str | list[str]"]] = {
         "nav_not_found": "उस विषय का हिस्सा मुझे नहीं मिला। चलिए आगे बढ़ते हैं।",
         "switch_topic": "ठीक है, चलिए {title} पर चलते हैं। एक पल दीजिए, मैं तैयार करती हूँ।",
         "nav_switch_offer": "यह इस पाठ का हिस्सा नहीं है। अगर {title} पर नया पाठ चाहिए तो कहिए, स्विच टू {title}। अभी हम आगे बढ़ते हैं।",
+        "ask_switch_topic": "ज़रूर, आप किस विषय पर बदलना चाहते हैं, और यह किस कक्षा के लिए है?",
         "status_length": "हम {total} में से {done} भाग पर हैं, {sections} भाग बाकी हैं। बिना रुके लगभग {minutes} मिनट और।",
         "status_topic": "हम {title}{grade} पढ़ रहे हैं।",
         "status_progress": "हम {total} में से {done} भाग पर हैं।",
