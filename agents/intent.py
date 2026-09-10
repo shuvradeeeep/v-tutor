@@ -21,10 +21,18 @@ VALID_INTENTS = {"question", "explain", "navigate", "command", "session", "backc
                  "meta", "unknown"}
 
 
+def is_document_upload_request(utter: str) -> bool:
+    """Whether the learner is asking to provide a document for the lesson."""
+    text = _norm(utter)
+    has_document = bool(re.search(r"\b(?:pdf|document|file|notes|notesheet|chapter)\b", text))
+    has_request = bool(re.search(r"\b(?:upload|send|share|attach|teach from|learn from|use)\b", text))
+    return has_document and has_request
+
+
 @dataclass
 class Classification:
     intent: str
-    command: str | None = None          # repeat | slower | faster | switch_lesson_lang
+    command: str | None = None          # repeat | slower | faster | switch_lesson_lang | upload_document
     command_arg: str | None = None      # e.g. "hi" for switch_lesson_lang
     session_cmd: str | None = None      # pause | continue | restart | quit
     nav_target: dict | None = None      # {"kind": prev|next|index|topic, "value": ...}
@@ -367,6 +375,9 @@ def classify_rules(utter: str, *, paused: bool = False) -> Classification | None
             or _en(text, "padhao", "padhaiye", "sikhao", "pura", "poora", "sab kuch", "ab se")) \
             and _lang_mentioned(text):
         return Classification("command", command="switch_lesson_lang", command_arg=_lang_mentioned(text))
+
+    if is_document_upload_request(text):
+        return Classification("command", command="upload_document")
 
     # ---- command: speed --------------------------------------------------
     if _en(text, "faster", "speed up", "quicker", "too slow", "quick", "tez", "tezi se", "jaldi") \
