@@ -9,25 +9,45 @@ spoken.
 - **Speech in:** LiveKit + Silero VAD + faster-whisper (`stt/`)
 - **Reasoning:** LangGraph tutor with fenced barge-in, hybrid retrieval, Groq
   models, DuckDuckGo fallback (`agents/`)
-- **Speech out:** Rime `coda`, PCM over HTTP with a disk cache (`voice/tts.py`)
+- **Speech out:** Rime `coda`, raw PCM over a persistent WebSocket (`wss://users-ws.rime.ai/ws3`)
+  with an HTTPS fallback per line; disk-cached by text+voice+pace (`voice/tts.py`)
 - **The seam:** `voice/bridge.py` — VAD start stops playback now, the transcript
   becomes a graph event, playback-complete advances the lesson.
 
-## Run it
+## Prerequisites
+
+| Requirement | Notes |
+|---|---|
+| Python 3.11+ | Tested on 3.11.9 |
+| `RIME_API_KEY` | Required for voice. Without it, `TTS_PROVIDER=auto` falls back to Windows SAPI. |
+| `GROQ_API_KEY` | Required for LLM and cloud STT. Without it, the agent stubs all LLM calls and STT falls back to local faster-whisper. |
+| `LIVEKIT_URL/API_KEY/API_SECRET` | Required for room mode (`main.py dev`). Not needed for local mode. |
+| PortAudio / sounddevice | Required for local mode audio I/O (installed via `requirements-audio.txt`). |
+| Headphones | Strongly recommended for local mode; the browser path has AEC, the local path does not. |
+
+## Setup
 
 ```powershell
 cd d:\v-tutor-folder\v-tutor
 ..\venv\Scripts\python -m pip install -r requirements.txt -r requirements-audio.txt
 copy .env.example .env      # fill RIME_API_KEY, GROQ_API_KEY, LIVEKIT_* (room mode only)
 
-..\venv\Scripts\python -m pytest tests -q                 # 152 offline tests, no keys, ~12 s
-..\venv\Scripts\python scripts\voice_dry_run.py           # whole chain, no mic (Rime renders the learner)
+# Verify Rime configuration and secret hygiene (live network, exit 0 = pass)
+..\venv\Scripts\python scripts\preflight.py
+
+# Offline test suite — no keys required, ~15 s
+..\venv\Scripts\python -m pytest tests -q                 # 269 tests
+
+# Whole chain without a microphone: Rime renders the learner's lines as audio
+..\venv\Scripts\python scripts\voice_dry_run.py
+
+# Live modes
 ..\venv\Scripts\python main.py local --lang en            # laptop mic + speakers (wear headphones)
 ..\venv\Scripts\python main.py dev                        # LiveKit worker; join via scripts\room_token.py
 ..\venv\Scripts\python web\server.py [--https]            # web UI for laptop / phone, with the worker running
 ```
 
-Text-only, no audio at all: `..\venv\Scripts\python scripts\text_harness.py --live --web duckduckgo`.
+Text-only (no audio at all): `..\venv\Scripts\python scripts\text_harness.py --live --web duckduckgo`.
 
 Full instructions, outputs and measured latencies: [docs/VOICE_PIPELINE.md](docs/VOICE_PIPELINE.md).
 Design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/AGENTS_PLAN.md](docs/AGENTS_PLAN.md).
@@ -54,7 +74,15 @@ against Rime's live catalog and makes one real synthesis on this exact path.
 | Delivery | coda has no emotion tags or SSML, so expressiveness is written: Rime's prompting guide is baked into the model prompts (`TutorNodes.EAR_RULES`), and every fixed phrase (welcome, fillers, bridges, goodbye) has several wordings that rotate by turn (`agents/strings.py`) |
 | Fallback (disclosed) | Windows SAPI when `RIME_API_KEY` is unset (`TTS_PROVIDER=auto`); a failed Rime call mid-session is logged as `tts_fallback`, shown as an amber FALLBACK badge in the web UI, and the line is not spoken |
 
-Third-party services: Rime (speech), Groq (`gpt-oss-20b`/`gpt-oss-120b` reasoning; `whisper-large-v3-turbo` speech recognition, local faster-whisper fallback), LiveKit Cloud (transport), Wikipedia (material), DuckDuckGo (out-of-syllabus lookups).
+Third-party services and their roles:
+
+| Service | Role | Fallback |
+|---|---|---|
+| **Rime** (`users-ws.rime.ai`, `users.rime.ai`) | Text-to-speech (primary voice) | Windows SAPI when `RIME_API_KEY` unset; line skipped on mid-session failure |
+| **Groq** (`api.groq.com`) | LLM reasoning (`openai/gpt-oss-20b`, `openai/gpt-oss-120b`) and cloud STT (`whisper-large-v3-turbo`) | Stub LLM when key absent; local faster-whisper for STT |
+| **LiveKit Cloud** | WebRTC audio transport (room mode) | N/A — local mode uses sounddevice directly |
+| **Wikipedia** (`en.wikipedia.org`) | Lesson material source | Tutor prompts for a different topic on failure |
+| **DuckDuckGo** | Out-of-syllabus web lookups | Stub returns empty results |
 
 ## Evidence and preflight
 

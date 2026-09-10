@@ -48,16 +48,16 @@ changes the request. Pass criteria, all measured on what the learner hears:
 
 ## Procedure (repeatable)
 
-Offline, no keys, ~8 s — the fences as unit tests:
+Offline, no keys, ~15 s — the fences as unit tests:
 
 ```powershell
-.\v-tutor\Scripts\python -m pytest tests\test_fencing.py tests\test_voice_bridge.py -q
+..\venv\Scripts\python -m pytest tests\test_fencing.py tests\test_voice_bridge.py -q
 ```
 
 `test_stale_web_result_is_never_spoken`, `test_stress_delay_aborts_slow_tool_when_turn_moves_on`,
 `test_stale_explain_is_discarded_too`, `test_stale_direct_answer_is_discarded`, and the
 bridge tests for the heard cursor; `tests\test_streaming_player.py` for playback
-of a line that is still arriving. 239 tests in the full suite.
+of a line that is still arriving. 269 tests in the full suite (`python -m pytest tests -q`).
 
 Whole chain, no microphone, real VAD + real STT + real Groq + real Rime. The
 learner's lines are rendered by Rime in a different voice and fed through the
@@ -65,19 +65,19 @@ VAD as audio. The `!` prefix speaks that line 1.5 s after the previous
 transcript instead of waiting for the tutor, i.e. inside the delayed tool call:
 
 ```powershell
-.\v-tutor\Scripts\python scripts\voice_dry_run.py --stress-ms 3000 --say "English" --say "the heart for class six" `
+..\venv\Scripts\python scripts\voice_dry_run.py --stress-ms 3000 --say "English" --say "the heart for class six" `
     --say "who won the football match yesterday" --say "!how many chambers does the heart have" --say "stop for today"
 ```
 
-Live, laptop mic, same stress knob: `python main.py local --lang en --stress-ms 3000`
-(wear headphones), or the web UI (`python main.py dev` + `python web\server.py`,
+Live, laptop mic, same stress knob: `..\venv\Scripts\python main.py local --lang en --stress-ms 3000`
+(wear headphones), or the web UI (`..\venv\Scripts\python main.py dev` + `..\venv\Scripts\python web\server.py`,
 with `STRESS_DELAY_MS=3000` in the environment; the badge shows "stress +3000 ms").
 
 Every run writes `evidence\<session>.csv` (one row per event, ms since start).
 Recompute every number below from those files:
 
 ```powershell
-.\v-tutor\Scripts\python scripts\evidence_summary.py
+..\venv\Scripts\python scripts\evidence_summary.py
 ```
 
 ## Result
