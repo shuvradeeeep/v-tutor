@@ -1,0 +1,5 @@
+timestamp,elapsed_ms,session,event,payload
+2026-09-10T15:19:11,88,lesson-ln9b-1789033751,tts,"{""turn"": 0, ""words"": 17, ""synth_ms"": 1, ""audio_s"": 5.61, ""cached"": true, ""first_audio_ms"": null, ""timestamps"": false, ""transport"": ""ws""}"
+2026-09-10T15:19:11,89,lesson-ln9b-1789033751,tts,"{""turn"": 0, ""words"": 17, ""synth_ms"": 1, ""audio_s"": 5.61, ""cached"": true, ""first_audio_ms"": null, ""timestamps"": false, ""transport"": ""ws""}"
+2026-09-10T15:19:11,89,lesson-ln9b-1789033751,speak,"{""turn"": 0, ""kind"": ""system"", ""lang"": ""en"", ""text"": ""Hi! Which language shall we study in? You can say it, or tap it on the screen.""}"
+2026-09-10T15:19:11,89,lesson-ln9b-1789033751,speak,"{""turn"": 0, ""kind"": ""system"", ""lang"": ""en"", ""text"": ""Hi! Which language shall we study in? You can say it, or tap it on the screen.""}"

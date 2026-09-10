@@ -242,10 +242,13 @@ class TutorNodes:
         if state.get("pdf_paths"):
             return _merge(self._say(state, self._T(state, "prepare_wait"), kind="system"),
                           {"source_kind": "pdf", "answer": None, "user_utterance": None,
-                           "onboarding_step": "done"})
+                           "onboarding_step": "done", "awaiting_document": False})
         utter = (state.get("user_utterance") or "").strip()
         if not utter:
             return {"answer": self._T(state, "ask_source")}
+        if intent_mod.is_document_upload_request(utter):
+            return {"answer": self._T(state, "ask_upload"), "awaiting_document": True,
+                    "user_utterance": None}
         # "Ask me the language again" / "speak in Hindi" while being asked for
         # a topic: go back to the language question. A named, supported language
         # is taken on the spot; anything else re-asks.
@@ -670,6 +673,9 @@ class TutorNodes:
         upd: dict = {"answer": None, "heard_cursor": cur or None}
         if cmd == "repeat":
             return upd
+        if cmd == "upload_document":
+            return {"answer": self._T(state, "ask_upload"), "onboarding_step": "source",
+                    "awaiting_document": True, "user_utterance": None}
         if cmd in ("slower", "faster"):
             step = config.SPEED_ALPHA_STEP
             slower = cmd == "slower"
@@ -755,6 +761,7 @@ class TutorNodes:
             self.d.emit("switch_topic_requested", from_topic=state.get("topic"))
             return {
                 "onboarding_step": "source",
+                "pdf_paths": [],
                 "topic": None,
                 "topic_switch": False,
                 "source_kind": None,

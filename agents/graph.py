@@ -188,6 +188,7 @@ class TutorRunner:
         self.app.update_state(
             self.config,
             {"pdf_paths": paths, "onboarding_step": "source",
+             "awaiting_document": False,
              "beats": [], "beat_index": 0, "beat_spoken": False,
              "topic": "", "source_title": "", "sections": [], "section_index": 0,
              "paused": False, "finished": False},

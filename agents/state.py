@@ -12,7 +12,7 @@ from typing import Annotated, Literal, TypedDict
 Intent = Literal[
     "question", "explain", "navigate", "command", "session", "backchannel", "meta", "unknown"
 ]
-Command = Literal["repeat", "slower", "faster", "switch_lesson_lang"]
+Command = Literal["repeat", "slower", "faster", "switch_lesson_lang", "upload_document"]
 SessionCmd = Literal["pause", "continue", "restart", "quit"]
 OnboardingStep = Literal["language", "source", "done"]
 EventType = Literal["user_barge_in", "playback_confirmed", "lesson_complete"]
@@ -64,6 +64,7 @@ class TutorState(TypedDict, total=False):
     source_title: str | None
     source_url: str | None
     source_asks: int                 # how many times we've asked for topic/grade
+    awaiting_document: bool
 
     # ---------- material ----------
     sections: list[Section]
@@ -130,6 +131,7 @@ def initial_state(session_id: str, pdf_paths: list[str] | None = None,
         pdf_paths=list(pdf_paths or []),
         topic=None, grade=None, source_lang=None, source_title=None,
         source_url=None, source_asks=0,
+        awaiting_document=False,
         sections=[], lesson_plan=[], beat_index=0, beat_spoken=False,
         lesson_done=False,
         turn_id=0, born_turn_id=0, heard_cursor=None, heard_sentence=None,
