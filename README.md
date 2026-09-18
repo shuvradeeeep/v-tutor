@@ -1,10 +1,135 @@
 # v-tutor
 
-A voice tutor that teaches from a Wikipedia topic or your own PDF, and survives
-being interrupted mid-sentence: it stops within a millisecond of you speaking,
-answers, and resumes from the sentence you actually heard. Stale results
-(a slow web search, a model reply that finished after you spoke) are never
-spoken.
+## Executive Summary
+
+**v-tutor** is a voice-native AI tutor that teaches any subject aloud — from a Wikipedia topic or your own PDF — in English or Hindi, and lets the learner interrupt mid-sentence to ask questions, get answers (from the material, the LLM, or a live web search), and resume exactly where they left off without repeating or skipping content. The system is built in three layers: a **realtime voice loop** (Silero VAD + Whisper STT via LiveKit) that stops audio in under 200 ms when the learner speaks, a **LangGraph agentic layer** that classifies intent, retrieves from hybrid vector + BM25 search, fences stale results with a monotonic `turn_id`, and decides how to resume, and a **Rime TTS output layer** (`coda` model, persistent WebSocket, word-level timestamps) that tracks exactly which words the learner heard. The core hard-voice problem solved is **interruption and recovery with an accurate heard-cursor**: stale tool results and model replies from abandoned turns are structurally prevented from ever reaching the speaker, and the lesson resumes from the correct sentence boundary — proven by 210 offline tests and live sessions with measured sub-200 ms stop latency.
+
+---
+
+## Architecture
+
+Three layers, each with a distinct responsibility and latency budget. The most important design rule: **audio-level interruption (stopping sound) is instant and lives outside the reasoning layer; content-level interruption (deciding what to say next) lives inside LangGraph.**
+
+```mermaid
+flowchart TB
+
+%% ===================== LAYER 1 — Realtime Voice Loop =====================
+subgraph L1["LAYER 1 · Realtime Voice Loop — LiveKit Agents"]
+direction LR
+  MIC["🎤 User mic<br/>browser / local"]
+  ROOM["LiveKit Room<br/>WebRTC · Opus 48 kHz"]
+  VAD["Silero VAD<br/><b>FAST PATH ≈120 ms</b><br/>speech start / end"]
+  STT["Streaming STT · Whisper<br/>SLOW PATH ≈300–500 ms<br/>transcript + detected_lang"]
+  MIC --> ROOM
+  ROOM --> VAD
+  ROOM --> STT
+end
+
+%% ===================== LAYER 2 — LangGraph Agentic Layer =====================
+subgraph L2["LAYER 2 · Agentic Layer — LangGraph · one thread per session"]
+  OB["Onboarding<br/>choose_language → choose_source<br/>→ fetch / parse → ingest"]
+  TEACH["teach_step<br/>emit next lesson beat"]
+  AWAIT{{"await_event<br/>interrupt() pause point"}}
+  HINT["handle_interrupt<br/>turn_id++ · freeze heard_cursor"]
+  CLS{"classify_intent<br/>8 intents · regex → fast LLM"}
+  CMD["command_handler<br/>repeat / slower / faster<br/>switch lesson lang"]
+  SESS["session_handler<br/>pause / continue / restart / quit"]
+  NAV["find_section<br/>prev / next / topic / switch"]
+  EXP["explain<br/>define / simplify<br/>the heard sentence"]
+  QA["qa_retrieve<br/>hybrid: vector cosine + BM25"]
+  DIR["direct_answer<br/>LLM first · LOOKUP → web"]
+  WEB["web_search_node<br/>DuckDuckGo · honours STRESS_DELAY_MS"]
+  COMP["compose_answer<br/>LLM · streams tokens · writes for the ear"]
+  FENCE{"fence_check<br/>born_turn_id == turn_id?"}
+  RESUME["resume_controller<br/>speak answer + bridge<br/>resume from heard_cursor"]
+  DROP["discard<br/>stale branch → count + END"]
+  GAP["gap_filler watchdog<br/>async · pre-cached clips<br/>arms after 700 ms silence"]
+  CKPT[("checkpointer<br/>SQLite")]
+end
+
+%% ===================== LAYER 3 — Speech Output =====================
+subgraph L3["LAYER 3 · Speech Output — Rime TTS"]
+  RIME["RimeStreamClient<br/>wss://users-ws.rime.ai/ws3<br/>modelId=coda · PCM 16 kHz<br/>persistent WebSocket"]
+  PLAY["Playback engine<br/>jitter buffer → LiveKit track<br/>or local speakers"]
+  CUR["heard_cursor<br/>word_timestamps × frames played"]
+  FB["Fallback TTS<br/>(disclosed, non-default)"]
+  SPK["🔊 Learner's speaker"]
+end
+
+%% ---------- L1 → L2 : two-speed barge-in ----------
+VAD  -->|"user_barge_in — fires WITHOUT waiting for text"| HINT
+STT  -->|"final transcript + language"| CLS
+
+%% ---------- L2 internal ----------
+OB --> TEACH --> AWAIT
+AWAIT -->|"playback_confirmed"| TEACH
+AWAIT -->|"user_barge_in"| HINT
+HINT --> CLS
+CLS -->|"command"| CMD
+CLS -->|"session"| SESS
+CLS -->|"navigate"| NAV
+CLS -->|"explain"| EXP
+CLS -->|"question"| QA
+CLS -->|"meta"| RESUME
+CLS -->|"backchannel · mm-hmm"| RESUME
+CLS -->|"unknown"| RESUME
+QA  -->|"similarity ≥ τ"| COMP
+QA  -->|"similarity < τ"| DIR
+DIR -->|"LOOKUP"| WEB
+WEB --> COMP
+NAV --> TEACH
+CMD --> FENCE
+SESS --> AWAIT
+EXP --> FENCE
+COMP --> FENCE
+FENCE -->|"stale — a newer turn exists"| DROP
+FENCE -->|"current"| RESUME
+RESUME -->|"queued_request?"| CLS
+RESUME -->|"done"| AWAIT
+
+AWAIT <-.->|"persist / restore"| CKPT
+COMP -..->|"no audio for 700 ms"| GAP
+WEB  -..->|"slow tool call"| GAP
+
+%% ---------- L2 → L3 ----------
+RESUME -->|"text + turn_id"| RIME
+HINT ==>|"1· operation:clear"| RIME
+HINT ==>|"2· flush local buffer"| PLAY
+GAP  -..->|"cached filler clip"| PLAY
+
+%% ---------- L3 internal ----------
+RIME -->|"base64 PCM chunks"| PLAY
+RIME -->|"word_timestamps"| CUR
+PLAY -->|"frames actually rendered"| CUR
+PLAY --> SPK
+RIME -..->|"socket error"| FB
+FB   -..-> PLAY
+CUR  -->|"playback_confirmed + heard_cursor"| AWAIT
+
+classDef fast fill:#ffd8a8,stroke:#e8590c,stroke-width:2px
+classDef kill fill:#ffc9c9,stroke:#c92a2a,stroke-width:2px
+classDef rime fill:#d0bfff,stroke:#6741d9,stroke-width:2px
+classDef store fill:#e9ecef,stroke:#495057
+class VAD,GAP fast
+class HINT,FENCE,DROP kill
+class RIME,CUR rime
+class CKPT store
+```
+
+> **Legend.** 🟠 Orange nodes are latency-critical. 🔴 Red nodes are the barge-in kill/fence path. 🟣 Purple nodes are Rime TTS. Thick arrows (`==>`) are the instant stop path. Dotted arrows are async or failure paths.
+
+**Key data flows:**
+
+| Path | What happens | Latency |
+|---|---|---|
+| **Barge-in kill** | VAD fires → `rime.clear()` + `player.flush()` → graph notified | < 200 ms |
+| **Transcript → answer** | Whisper finalises → `classify_intent` → retrieve/compose → `fence_check` → speak | 0.5–2 s |
+| **Stale discard** | A slow web search finishes after a new barge-in → `fence_check` sees `born_turn_id < turn_id` → result dropped | Instant (one integer comparison) |
+| **Heard cursor** | Rime `word_timestamps` × frames played → exact word the learner heard → sentence-boundary resume | Continuous |
+
+---
+
+### Component summary
 
 - **Speech in:** LiveKit + Silero VAD + faster-whisper (`stt/`)
 - **Reasoning:** LangGraph tutor with fenced barge-in, hybrid retrieval, Groq
