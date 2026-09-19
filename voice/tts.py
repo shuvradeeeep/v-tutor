@@ -8,7 +8,7 @@ RimeSpeaker implements agents.session.Speaker. Every speak() call:
      -- serving fixed phrases (fillers, bridges, onboarding) from a disk cache
      so they cost nothing after the first run;
   2. re-checks the turn clock -- a barge-in during synthesis means the audio is
-     never queued (this is the transport fence, layer 2 in ARCHITECTURE.md);
+     never queued (this is the transport fence in the playback path);
   3. hands the PCM to the Player tagged with its turn, with the word timestamps
      when Rime gave them, so the heard cursor is exact rather than estimated.
 

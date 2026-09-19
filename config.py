@@ -79,7 +79,7 @@ LANG_SPEAKER = {
 }
 REPLY_LANGS: tuple[str, ...] = tuple(LANG_SPEAKER)      # valid for one-off explanations
 
-# Catalog language codes differ from synthesis codes. Trap #2 in ARCHITECTURE.md.
+# Catalog language codes differ from synthesis codes, so the mapping is explicit.
 LANG_TO_CATALOG = {
     "en": "eng", "hi": "hin", "es": "spa", "de": "ger", "fr": "fra",
     "ar": "ara", "ja": "jpn", "pt": "por", "it": "ita",

@@ -2,7 +2,7 @@
 v-tutor voice entrypoint: microphone/LiveKit -> Silero VAD -> Whisper ->
 LangGraph tutor -> Rime -> speakers/LiveKit.
 
-Two ways to run (see docs/VOICE_PIPELINE.md):
+Two ways to run: local microphone mode or a LiveKit worker for browser and room mode.
 
   Local, no LiveKit -- laptop mic and speakers (wear headphones):
       v-tutor/Scripts/python main.py local [--lang en] [--pdf notes.pdf]

@@ -1,4 +1,4 @@
-"""Tests for the gap-closing pass (docs/AGENT_GAPS.md): bugs, writing for the
+"""Regression tests for edge cases, writing for the ear, and the gap filler:
 ear, lesson cap + two-stage preparation, LLM JSON path, web provider, gap
 filler, evidence writer, persistence."""
 from __future__ import annotations

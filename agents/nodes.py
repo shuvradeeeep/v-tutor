@@ -1,5 +1,5 @@
 """
-Node implementations for the tutor graph. See docs/AGENTS_PLAN.md.
+Node implementations for the tutor graph and its interrupt and resume paths.
 
 Two invariants are enforced here and nowhere else:
 
