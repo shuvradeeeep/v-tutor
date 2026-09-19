@@ -183,7 +183,7 @@ The configuration is centralized in [`config.py`](config.py). `scripts\preflight
 | Setting | Shipped configuration |
 |---|---|
 | Model ID | `coda` |
-| English speaker | `clementine` in the configured demo environment |
+| English speaker | `clementine` in the demo environment; `ana` is the fallback default when `RIME_SPEAKER_EN` is unset |
 | Hindi speaker | `nadi` |
 | Study languages | English (`en`) and Hindi (`hi`) |
 | Primary endpoint | `wss://users-ws.rime.ai/ws3` |
@@ -228,7 +228,7 @@ The committed `evidence/` directory contains event logs and pace-control audio f
 ## Failure behavior and limitations
 
 - Rime is the default speech path, and the UI exposes the active provider state.
-- Exact word-level recovery is available when Rime WebSocket timestamps are present. HTTP fallback and Hindi use a sentence-safe estimate.
+- Exact word-level recovery is available after Rime WebSocket timestamps are received. While a line is still streaming, recovery uses a pace-based estimate; HTTP fallback and Hindi use a sentence-safe estimate.
 - Local microphone mode needs headphones because it does not provide acoustic echo cancellation.
 - A failed Rime line is logged and not replayed, avoiding duplicated speech.
 - Unsupported or unreadable sources prompt the learner to choose another topic or document.
