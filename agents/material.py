@@ -231,7 +231,7 @@ def sections_from_plaintext(raw: str, title: str = "Introduction",
 # Wikimedia returns 403 unless the User-Agent carries a contact URL. It ALSO
 # blocks httpx by client fingerprint (same UA gets 200 via requests/curl and 403
 # via httpx, verified 2026-09-07), so this module uses `requests` for Wikipedia.
-_UA = "v-tutor/0.1 (https://github.com/shuvradeeeep/v-tutor; hackathon voice tutor)"
+_UA = "v-tutor/0.1 (voice-native tutor)"
 
 
 class DisambiguationError(Exception):

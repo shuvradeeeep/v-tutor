@@ -84,7 +84,7 @@ timestamp,elapsed_ms,session,event,payload
 2026-09-09T20:09:06,70319,lesson-uqfd-1788964676,transcript,"{""text"": ""stop for today"", ""lang"": null, ""prob"": 1.0, ""vad_s"": 0.0, ""whisper_ms"": 0, ""cursor"": null, ""since_vad_start_ms"": 2865}"
 2026-09-09T20:09:06,70344,lesson-uqfd-1788964676,graph_turn_done,"{""ms"": 23, ""intent"": ""session"", ""turn"": 7}"
 2026-09-09T20:09:08,71495,lesson-uqfd-1788964676,stop,"{""cursor"": {""turn_id"": 7, ""words_heard"": null, ""text"": """", ""was_last_item"": true, ""playing"": false}}"
-2026-09-09T20:09:08,71495,lesson-uqfd-1788964676,transcript,"{""text"": ""Awe Pandey kya kia aisa jo, bila uske chal raha hai."", ""lang"": ""hi"", ""prob"": 1.0, ""vad_s"": 3.58, ""whisper_ms"": 453, ""cursor"": null, ""since_vad_start_ms"": null}"
+2026-09-09T20:09:08,71495,lesson-uqfd-1788964676,transcript,"{""text"": ""Aapne kya kiya aisa jo bina uske chal raha hai."", ""lang"": ""hi"", ""prob"": 1.0, ""vad_s"": 3.58, ""whisper_ms"": 453, ""cursor"": null, ""since_vad_start_ms"": null}"
 2026-09-09T20:09:08,71501,lesson-uqfd-1788964676,graph_turn_done,"{""ms"": 5, ""intent"": ""session"", ""turn"": 7}"
 2026-09-09T20:09:14,78071,lesson-uqfd-1788964676,localized_bg,"{""section"": ""s6"", ""ok"": false}"
 2026-09-09T20:09:24,88301,lesson-uqfd-1788964676,localized_bg,"{""section"": ""s10"", ""ok"": true}"

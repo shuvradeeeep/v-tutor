@@ -298,7 +298,7 @@ pdfInput.addEventListener("change", async () => {
     const res = await fetch("/upload", { method: "POST", body: formData });
     const json = await res.json();
     if (json.ok) {
-      note(`📄 Loaded: ${json.names.join(", ")} — teaching from your document now`);
+      note(`📄 Loaded: ${json.names.join(", ")}. Teaching from your document now.`);
       send("control", { load_pdf: json.paths });
     } else {
       note(`PDF upload failed: ${json.error || "unknown error"}`, "warn");

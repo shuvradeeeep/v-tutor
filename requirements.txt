@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Agent layer (install this first — no audio hardware or GPU needed)
+# Agent layer (install this first; no audio hardware or GPU needed)
 # ---------------------------------------------------------------------------
 langgraph>=1.0
 langgraph-checkpoint-sqlite>=2.0
@@ -23,7 +23,7 @@ ddgs>=9.0
 pytest>=8.0
 
 # ---------------------------------------------------------------------------
-# Realtime voice layer — install once the agent layer passes its tests.
+# Realtime voice layer; install once the agent layer passes its tests.
 # Large downloads (Silero VAD, Whisper weights). See requirements-audio.txt.
 # ---------------------------------------------------------------------------
 livekit-agents[silero,rime]~=1.5

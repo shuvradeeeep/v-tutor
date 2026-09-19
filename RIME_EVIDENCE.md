@@ -1,4 +1,4 @@
-# RIME_EVIDENCE.md — v-tutor
+# RIME_EVIDENCE.md -- v-tutor
 
 ## The hard voice claim
 
@@ -21,12 +21,12 @@ dropped. This is the PS "Interruption and recovery" problem, with the
 | Model ID | `coda` (sent explicitly as `modelId`) |
 | Speaker | `clementine` (English, judged flow; chosen 2026-09-09 over `beatty`, which Rime describes as "distinctly casual", for a warmer, livelier tutor); Hindi `nadi` |
 | Language code sent | BCP-47 `en` / `hi` (catalog keys `eng`/`hin` are used only to look voices up) |
-| Endpoint, primary | `wss://users-ws.rime.ai/ws3` — persistent websocket, `segment=immediate`, `contextId` per line, `{"operation":"clear"}` on barge-in, `timestamps` messages for the heard cursor |
+| Endpoint, primary | `wss://users-ws.rime.ai/ws3` -- persistent websocket, `segment=immediate`, `contextId` per line, `{"operation":"clear"}` on barge-in, `timestamps` messages for the heard cursor |
 | Endpoint, fallback | `https://users.rime.ai/v1/rime-tts`, HTTPS POST, `Accept: audio/pcm` (per line, when the socket fails) |
 | Audio format | raw PCM s16le mono, `samplingRate: 16000` |
 | Pace | `timeScaleFactor` 0.4–2.5, higher = slower (measured below) |
 | Transport | one synthesis per spoken line, disk-cached by text+voice+pace; LiveKit WebRTC audio track (room) or sounddevice (local) |
-| Verified by | `python scripts\preflight.py` — live catalog lookup for every pinned voice, one uncached synthesis on the HTTP path AND one over the websocket (checks first-audio time and that word timestamps arrive), secret hygiene. Passed 15/15 on 2026-09-09. |
+| Verified by | `python scripts\preflight.py` -- live catalog lookup for every pinned voice, one uncached synthesis on the HTTP path AND one over the websocket (checks first-audio time and that word timestamps arrive), secret hygiene. Passed 15/15 on 2026-09-09. |
 
 Rime is the only product voice. Fallback (Windows SAPI when no key; a skipped
 line on a failed call) is logged as `tts_fallback` and shown as an amber
@@ -48,7 +48,7 @@ changes the request. Pass criteria, all measured on what the learner hears:
 
 ## Procedure (repeatable)
 
-Offline, no keys, ~15 s — the fences as unit tests:
+Offline, no keys, ~15 s -- the fences as unit tests:
 
 ```powershell
 ..\venv\Scripts\python -m pytest tests\test_fencing.py tests\test_voice_bridge.py -q
@@ -57,7 +57,7 @@ Offline, no keys, ~15 s — the fences as unit tests:
 `test_stale_web_result_is_never_spoken`, `test_stress_delay_aborts_slow_tool_when_turn_moves_on`,
 `test_stale_explain_is_discarded_too`, `test_stale_direct_answer_is_discarded`, and the
 bridge tests for the heard cursor; `tests\test_streaming_player.py` for playback
-of a line that is still arriving. 269 tests in the full suite (`python -m pytest tests -q`).
+of a line that is still arriving. 274 tests in the full suite (`python -m pytest tests -q`).
 
 Whole chain, no microphone, real VAD + real STT + real Groq + real Rime. The
 learner's lines are rendered by Rime in a different voice and fed through the
@@ -86,7 +86,7 @@ Recompute every number below from those files:
 
 | ms | event | what happened |
 |---|---|---|
-| 40 782 | transcript | "Who won the football match yesterday?" — not in the notes |
+| 40 782 | transcript | "Who won the football match yesterday?" -- not in the notes |
 | 41 421 | answer_mode lookup | the model asks for a web search; the tool is delayed 3000 ms |
 | 42 131 | filler | "Let me check that." (gap filler after 0.7 s of silence) |
 | 44 388 | **vad_start**, stop 0.13 ms | learner cuts in during the delayed tool: "How many chambers does the heart have?" |
@@ -101,31 +101,30 @@ The football answer was never spoken; the updated request was.
 
 ### Aggregate over every committed session
 
-48 sessions (`evidence/*.csv`: local mic, LiveKit room, dry runs, UI smoke),
-2 674 events, 222 barge-ins of which 113 landed mid-utterance with a heard
-cursor. Output of `scripts\evidence_summary.py` on 2026-09-09:
+76 evidence files (`evidence/*.csv`: local mic, LiveKit room, dry runs, and UI
+smoke), 439 barge-ins, of which 221 landed mid-utterance with a heard cursor.
+Output of `scripts\evidence_summary.py`:
 
 | Measurement | n | median | p95 | max | Criterion |
 |---|---|---|---|---|---|
-| VAD start → playback flushed | 222 | **0.15 ms** | 8.55 ms | 17.75 ms | A1 ✔ (≤ 150 ms) |
-| Stale results spoken | — | **0** | | | A2 ✔ |
-| Stale results fenced: `tts_drop_stale` 38 · `fence_drop` 15 · `discard` 3 | 56 | | | | A2 |
-| Rime synth, **uncached** HTTPS round trip | 216 | 3 151 ms | 7 531 ms | 11 138 ms | disclosed |
-| Rime synth, **cached** (disk) | 244 | 0 ms | 4 ms | 16 ms | disclosed |
-| Rime audio produced | 460 lines, 7 896 words, 49.8 min; 10 `tts_fallback` (line skipped, logged) | | | | A5 |
-| STT inference (local `base`, most sessions) | 227 | 1 794 ms | 2 861 ms | 5 708 ms | see note |
-| VAD start → transcript in hand (includes the utterance itself + 0.5 s end-of-speech) | 224 | 3 514 ms | 6 615 ms | 9 711 ms | |
-| Transcript → graph parked again | 227 | 2 793 ms | 15 019 ms | 32 965 ms | includes lesson builds |
-| Ingest → first lesson line | 33 | 6 765 ms | 10 345 ms | 24 119 ms | not optimised |
+| VAD start → playback flushed | 439 | **0.18 ms** | 1.12 ms | 17.75 ms | A1 ✔ (≤ 150 ms) |
+| Stale results spoken | -- | **0** | | | A2 ✔ |
+| Stale results fenced: `tts_drop_stale` 47 · `fence_drop` 35 · `discard` 7 | 89 | | | | A2 |
+| Rime synth, **uncached** HTTPS round trip | 225 | 3 217 ms | 7 531 ms | 11 138 ms | disclosed |
+| Rime synth, **cached** (disk) | 471 | 1 ms | 19 ms | 50 ms | disclosed |
+| Rime audio produced | 935 lines, 17 764 words, 103.4 min; 13 `tts_fallback` (line skipped, logged) | | | | A5 |
+| STT inference | 446 | 759 ms | 2 478 ms | 5 708 ms | see note |
+| VAD start → transcript in hand (includes the utterance itself + 0.5 s end-of-speech) | 434 | 3 118 ms | 6 083 ms | 9 711 ms | |
+| Transcript → graph parked again | 491 | 1 533 ms | 14 822 ms | 32 965 ms | includes lesson builds |
+| Ingest → first lesson line | 56 | 6 653 ms | 11 140 ms | 24 119 ms | not optimised |
 
 Cached and uncached Rime numbers are separated at the source: `voice/tts.py`
 records whether each line came from disk, and the summary never mixes them.
 
-**STT note.** Most committed sessions used local faster-whisper `base` (the
-1.8 s median above). On 2026-09-09 the default ear became Whisper
-large-v3-turbo on Groq (`stt/cloud.py`); in the stress run above it measured
-446–750 ms per utterance. A/B on eight Rime-rendered learner lines: 290–560 ms
-for both ears, the cloud model fixing the one line `base` misheard.
+**STT note.** The aggregate contains local and cloud speech-to-text sessions,
+so its 759 ms median is descriptive rather than a single-provider benchmark.
+The stress run above used Whisper large-v3-turbo on Groq and measured 446–750
+ms per utterance.
 
 ### Rime transport and controlled delivery (2026-09-09, added after the aggregate above)
 
@@ -138,10 +137,10 @@ and `evidence/dryrun-1788900117.csv`):
 | Websocket `ws3` | **375–470 ms** (8 of 8 uncached lines in the dry run; 441 ms in preflight) | 0.9–4.0 s, proportional to clip length | on every English line |
 
 Playback is streamed: the line is handed to the player on the first chunk and
-grows while it plays, so the learner hears the tutor ~0.4 s after synthesis
-starts instead of 2–4 s. Over all committed websocket lines
-(`scripts\evidence_summary.py`, 2026-09-09): time to first audio n=16, median
-430 ms, p95 470 ms, max 481 ms; every English line carried word timestamps.
+grows while it plays, so the learner hears the tutor about 0.4 s after
+synthesis starts instead of waiting for the full line. Over all committed
+websocket lines (`scripts\evidence_summary.py`): time to first audio n=205,
+median 417 ms, p95 537 ms, max 858 ms.
 In `evidence/dryrun-1788900721.csv` (real-time pace) a barge-in landed while a
 27-word beat was still arriving: playback stopped in 0.12 ms, Rime received
 `clear`, the item was closed with 1.69 s of audio, the question was answered

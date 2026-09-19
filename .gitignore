@@ -20,7 +20,7 @@ __pycache__/
 build/
 dist/
 
-# runtime output (evidence/ is committed on purpose — see IMPLEMENTATION_PLAN.md)
+# Runtime output. Committed evidence is intentionally retained for reproducibility.
 *.log
 agent.log
 transcripts.csv
