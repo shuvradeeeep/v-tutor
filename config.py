@@ -50,10 +50,10 @@ ECHO_AUTO_HALF_DUPLEX = int(_env("ECHO_AUTO_HALF_DUPLEX", "2"))
 TTS_PROVIDER = _env("TTS_PROVIDER", "auto")
 RIME_AUDIO_FORMAT = "pcm"                                    # no MP3 frame lag on flush
 RIME_SAMPLE_RATE = int(_env("RIME_SAMPLE_RATE", "16000"))    # verified by preflight
-# What is actually shipped: one HTTPS request per line to RIME_HTTP_ENDPOINT
-# returning raw PCM, played through a LiveKit WebRTC track (room mode) or the
-# laptop's sound device (local mode). The websocket path is not built.
-RIME_TRANSPORT = "HTTPS one-shot (PCM body) -> LiveKit WebRTC audio track | sounddevice"
+# The shipped path streams raw PCM over the persistent WebSocket and plays it
+# through a LiveKit WebRTC track (room mode) or the laptop's sound device
+# (local mode). HTTPS is the per-line fallback when the socket fails.
+RIME_TRANSPORT = "WebSocket streaming PCM -> LiveKit WebRTC audio track | sounddevice"
 
 # Study languages offered at onboarding (the whole lesson + the tutor's voice).
 # Both exist on coda. BCP-47 for synthesis; the catalog uses 3-letter keys.
